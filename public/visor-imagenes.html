@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visor de Imágenes Médicas – Centro Diagnóstico</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #111;
+    --border: #2a2a2a;
+    --text: #e0e0e0;
+    --accent: #2196F3;
+    --success: #4CAF50;
+    --warn: #FF9800;
+    --danger: #f44336;
+    --sidebar-w: 320px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── Header ── */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  .patient-info { font-size: 12px; color: #aaa; }
+  .patient-info strong { color: #fff; }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity .2s;
+  }
+  .btn:hover { opacity: .8; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-warn { background: var(--warn); color: #000; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+  /* ── Layout principal ── */
+  .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar izquierdo: miniaturas ── */
+  .thumbnails-panel {
+    width: 100px;
+    background: #0d0d0d;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .thumbnail {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color .15s;
+    background: #1a1a1a;
+  }
+  .thumbnail.active { border-color: var(--accent); }
+  .thumb-placeholder {
+    width: 80px;
+    height: 80px;
+    background: #1a1a1a;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    border: 2px solid var(--border);
+  }
+  .upload-thumb {
+    width: 80px;
+    height: 80px;
+    background: #1a1a2e;
+    border: 2px dashed var(--accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .upload-thumb:hover { background: #1a1a3e; }
+
+  /* ── Canvas central ── */
+  .viewer-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .toolbar {
+    background: #0f0f0f;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .tool-btn {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background .15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tool-btn:hover { background: #2a2a2a; }
+  .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tool-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  .canvas-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    cursor: crosshair;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #mainCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    user-select: none;
+  }
+  .no-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #555;
+  }
+  .no-image span { font-size: 64px; }
+  .no-image p { font-size: 14px; }
+
+  /* ── Sidebar derecho: controles + reporte ── */
+  .right-panel {
+    width: var(--sidebar-w);
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    color: #888;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { flex: 1; overflow-y: auto; padding: 12px; display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Controles de ajuste ── */
+  .control-group { margin-bottom: 16px; }
+  .control-label { font-size: 11px; color: #aaa; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .control-label span { color: var(--accent); font-weight: 600; }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .toggle-row label { font-size: 13px; }
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    background: #333;
+    border-radius: 11px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: left .2s;
+  }
+  .toggle.on::after { left: 21px; }
+
+  .preset-btn {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    margin: 2px;
+  }
+  .preset-btn:hover { background: #252525; }
+
+  /* ── Reporte ── */
+  .report-section { margin-bottom: 14px; }
+  .report-section label { display: block; font-size: 11px; color: #aaa; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+  .report-section textarea {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+  .report-section textarea:focus { outline: none; border-color: var(--accent); }
+  .report-section select, .report-section input[type="text"] {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 7px 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .report-section select:focus, .report-section input:focus { outline: none; border-color: var(--accent); }
+
+  .save-bar {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .save-bar .btn { flex: 1; text-align: center; font-size: 13px; }
+
+  /* ── Notificación ── */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--success);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    z-index: 1000;
+    animation: slideIn .3s ease;
+    display: none;
+  }
+  @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ── Drop zone ── */
+  .canvas-container.drag-over { border: 3px dashed var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🩺 Visor de Imágenes Médicas</h1>
+    <div class="patient-info">
+      Paciente: <strong id="hdr-paciente">Cargando...</strong> &nbsp;|&nbsp;
+      Estudio: <strong id="hdr-estudio">–</strong> &nbsp;|&nbsp;
+      Código: <strong id="hdr-codigo">–</strong>
+    </div>
+  </div>
+  <button class="btn btn-ghost" onclick="history.back()">← Volver</button>
+  <button class="btn btn-warn" onclick="imprimirReporte()">🖨️ Imprimir</button>
+  <button class="btn btn-success" onclick="finalizarReporte()">✅ Finalizar</button>
+</header>
+
+<div class="main-layout">
+
+  <!-- Miniaturas -->
+  <div class="thumbnails-panel" id="thumbnailsPanel">
+    <div class="upload-thumb" onclick="document.getElementById('fileInput').click()" title="Agregar imagen">+</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*,.dcm" multiple style="display:none" onchange="handleFileInput(this)">
+
+  <!-- Visor central -->
+  <div class="viewer-area">
+    <div class="toolbar">
+      <button class="tool-btn active" id="btnMover" onclick="setTool('mover')" title="Mover">✋ Mover</button>
+      <button class="tool-btn" id="btnMedir" onclick="setTool('medir')" title="Medir distancia">📏 Medir</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" onclick="rotar(-90)" title="Rotar izquierda">↺ -90°</button>
+      <button class="tool-btn" onclick="rotar(90)" title="Rotar derecha">↻ +90°</button>
+      <button class="tool-btn" onclick="flip('H')" title="Voltear horizontal">⇔ H</button>
+      <button class="tool-btn" onclick="flip('V')" title="Voltear vertical">⇕ V</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" onclick="zoom(1.2)">🔍+</button>
+      <button class="tool-btn" onclick="zoom(0.8)">🔍-</button>
+      <button class="tool-btn" onclick="resetView()">↺ Reset</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" onclick="guardarAjustes()">💾 Guardar ajustes</button>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer"
+         ondragover="event.preventDefault(); this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleDrop(event)">
+      <div class="no-image" id="noImage">
+        <span>🖼️</span>
+        <p>Selecciona una imagen o arrastra un archivo aquí</p>
+        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Cargar imagen</button>
+      </div>
+      <canvas id="mainCanvas" style="display:none"></canvas>
+    </div>
+  </div>
+
+  <!-- Panel derecho -->
+  <div class="right-panel">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('ajustes')">🎨 Ajustes</button>
+      <button class="tab" onclick="showTab('reporte')">📋 Reporte</button>
+      <button class="tab" onclick="showTab('info')">ℹ️ Info</button>
+    </div>
+
+    <!-- TAB: Ajustes de imagen -->
+    <div class="tab-content active" id="tab-ajustes">
+      <div class="control-group">
+        <div class="control-label">Brillo <span id="val-brillo">0</span></div>
+        <input type="range" id="sl-brillo" min="-100" max="100" value="0" oninput="aplicarFiltros()">
+      </div>
+      <div class="control-group">
+        <div class="control-label">Contraste <span id="val-contraste">0</span></div>
+        <input type="range" id="sl-contraste" min="-100" max="100" value="0" oninput="aplicarFiltros()">
+      </div>
+      <div class="control-group">
+        <div class="control-label">Saturación <span id="val-saturacion">0</span></div>
+        <input type="range" id="sl-saturacion" min="-100" max="100" value="0" oninput="aplicarFiltros()">
+      </div>
+      <div class="control-group">
+        <div class="control-label">Nitidez <span id="val-nitidez">0</span></div>
+        <input type="range" id="sl-nitidez" min="0" max="100" value="0" oninput="aplicarFiltros()">
+      </div>
+      <div class="control-group">
+        <div class="control-label">Zoom <span id="val-zoom">1.0x</span></div>
+        <input type="range" id="sl-zoom" min="10" max="500" value="100" oninput="aplicarZoom()">
+      </div>
+
+      <div class="toggle-row">
+        <label>🔄 Invertir (negativo)</label>
+        <div class="toggle" id="tog-invertir" onclick="toggleInvertir()"></div>
+      </div>
+
+      <div style="margin-top:12px; font-size:11px; color:#888;">Presets rápidos:</div>
+      <div style="margin-top:6px;">
+        <button class="preset-btn" onclick="aplicarPreset('normal')">Normal</button>
+        <button class="preset-btn" onclick="aplicarPreset('hueso')">Hueso</button>
+        <button class="preset-btn" onclick="aplicarPreset('pulmones')">Pulmones</button>
+        <button class="preset-btn" onclick="aplicarPreset('tejidos')">Tejidos</button>
+        <button class="preset-btn" onclick="aplicarPreset('negativo')">Negativo</button>
+      </div>
+    </div>
+
+    <!-- TAB: Reporte médico -->
+    <div class="tab-content" id="tab-reporte">
+      <div class="report-section">
+        <label>Plantilla</label>
+        <select id="rp-plantilla" onchange="cambiarPlantilla()"></select>
+      </div>
+      <div id="campos-reporte"></div>
+    </div>
+
+    <!-- TAB: Info del estudio -->
+    <div class="tab-content" id="tab-info">
+      <div id="info-content" style="font-size:13px; line-height:1.8;">
+        <p style="color:#888;">Cargando información...</p>
+      </div>
+    </div>
+
+    <div class="save-bar">
+      <button class="btn btn-ghost" onclick="guardarReporte()">💾 Guardar</button>
+      <button class="btn btn-success" onclick="finalizarReporte()">✅ Finalizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Estado global ───────────────────────────────────────────────────────────
+const API_BASE = window.API_BASE || '/api';
+let resultadoId = new URLSearchParams(location.search).get('resultadoId') || window.RESULTADO_ID;
+let imagenes = [];
+let imagenActual = null;
+let imgObj = null;
+let canvasCtx = null;
+let ajustes = { brillo: 0, contraste: 0, saturacion: 0, zoom: 1, rotacion: 0, invertido: false, flipH: false, flipV: false };
+let plantillas = [];
+let reporteActual = {};
+let tool = 'mover';
+let isDragging = false, lastX = 0, lastY = 0;
+let offsetX = 0, offsetY = 0;
+
+// ── Canvas setup ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+
+// Eventos de arrastre en canvas
+canvas.addEventListener('mousedown', e => {
+  if (tool === 'mover') { isDragging = true; lastX = e.clientX; lastY = e.clientY; }
+});
+canvas.addEventListener('mousemove', e => {
+  if (!isDragging || tool !== 'mover') return;
+  offsetX += e.clientX - lastX;
+  offsetY += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  renderCanvas();
+});
+canvas.addEventListener('mouseup', () => isDragging = false);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  ajustes.zoom = Math.max(0.1, Math.min(10, ajustes.zoom * factor));
+  document.getElementById('sl-zoom').value = ajustes.zoom * 100;
+  document.getElementById('val-zoom').textContent = ajustes.zoom.toFixed(1) + 'x';
+  renderCanvas();
+}, { passive: false });
+
+// ── Carga inicial ─────────────────────────────────────────────────────────────
+async function init() {
+  await cargarPlantillas();
+  if (resultadoId) {
+    await cargarWorkspace();
+  }
+}
+
+async function cargarPlantillas() {
+  try {
+    const r = await fetch(`${API_BASE}/imagenologia/plantillas`);
+    const d = await r.json();
+    plantillas = d.data || [];
+    const sel = document.getElementById('rp-plantilla');
+    sel.innerHTML = plantillas.map(p => `<option value="${p.id}">${p.icono} ${p.nombre}</option>`).join('');
+  } catch {}
+}
+
+async function cargarWorkspace() {
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    const r = await fetch(`${API_BASE}/imagenologia/workspace/${resultadoId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    const data = d.data;
+
+    // Info header
+    const pac = data.paciente;
+    if (pac) {
+      document.getElementById('hdr-paciente').textContent = `${pac.nombre} ${pac.apellido}`;
+    }
+    document.getElementById('hdr-estudio').textContent = data.estudio?.nombre || '–';
+    document.getElementById('hdr-codigo').textContent = data.codigoMuestra || '–';
+
+    // Ajustes
+    if (data.visor?.ajustes) {
+      ajustes = { ...ajustes, ...data.visor.ajustes };
+      sincronizarSliders();
+    }
+
+    // Imágenes
+    imagenes = data.visor?.imagenes || [];
+    renderThumbnails();
+    if (imagenes.length > 0) cargarImagen(imagenes[0]);
+
+    // Reporte
+    reporteActual = data.reporte || {};
+    if (data.reporte?.plantilla) {
+      document.getElementById('rp-plantilla').value = data.reporte.plantilla;
+    }
+    renderCamposReporte();
+
+    // Info
+    renderInfo(data);
+  } catch (e) {
+    console.error('Error cargando workspace:', e);
+  }
+}
+
+// ── Imágenes ──────────────────────────────────────────────────────────────────
+function renderThumbnails() {
+  const panel = document.getElementById('thumbnailsPanel');
+  panel.innerHTML = `<div class="upload-thumb" onclick="document.getElementById('fileInput').click()" title="Agregar">+</div>`;
+
+  imagenes.forEach((img, i) => {
+    const el = document.createElement('img');
+    el.className = 'thumbnail' + (imagenActual === img.url ? ' active' : '');
+    el.src = img.url;
+    el.title = img.nombre;
+    el.onclick = () => cargarImagen(img);
+    panel.appendChild(el);
+  });
+
+  // Si no hay imágenes de servidor, mostrar las locales
+  if (imagenes.length === 0 && localImages.length > 0) {
+    localImages.forEach((src, i) => {
+      const el = document.createElement('img');
+      el.className = 'thumbnail' + (i === 0 ? ' active' : '');
+      el.src = src;
+      el.onclick = () => cargarImagenLocal(src);
+      panel.appendChild(el);
+    });
+  }
+}
+
+let localImages = [];
+
+function cargarImagen(img) {
+  imagenActual = img.url;
+  document.querySelectorAll('.thumbnail').forEach(t => {
+    t.classList.toggle('active', t.src.endsWith(img.url) || t.src === img.url);
+  });
+  const i = new Image();
+  i.crossOrigin = 'anonymous';
+  i.onload = () => {
+    imgObj = i;
+    offsetX = 0; offsetY = 0;
+    ajustes.rotacion = 0;
+    renderCanvas();
+    document.getElementById('noImage').style.display = 'none';
+    canvas.style.display = 'block';
+  };
+  i.onerror = () => toast('Error cargando imagen', 'danger');
+  i.src = img.url;
+}
+
+function cargarImagenLocal(src) {
+  imagenActual = src;
+  const i = new Image();
+  i.onload = () => {
+    imgObj = i;
+    offsetX = 0; offsetY = 0;
+    renderCanvas();
+    document.getElementById('noImage').style.display = 'none';
+    canvas.style.display = 'block';
+  };
+  i.src = src;
+}
+
+// ── Canvas render ─────────────────────────────────────────────────────────────
+function renderCanvas() {
+  if (!imgObj) return;
+  const container = document.getElementById('canvasContainer');
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  canvas.width = cw;
+  canvas.height = ch;
+
+  ctx.save();
+  ctx.clearRect(0, 0, cw, ch);
+
+  // Escala para ajustar la imagen al contenedor
+  const fitScale = Math.min(cw / imgObj.width, ch / imgObj.height) * 0.95;
+  const scale = fitScale * ajustes.zoom;
+
+  // Centro
+  ctx.translate(cw / 2 + offsetX, ch / 2 + offsetY);
+  ctx.rotate((ajustes.rotacion * Math.PI) / 180);
+  ctx.scale(ajustes.flipH ? -1 : 1, ajustes.flipV ? -1 : 1);
+
+  // Filtros CSS via canvas filter
+  const brightness = 100 + (ajustes.brillo || 0);
+  const contrast = 100 + (ajustes.contraste || 0);
+  const saturate = 100 + (ajustes.saturacion || 0);
+  let filterStr = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturate}%)`;
+  if (ajustes.invertido) filterStr += ' invert(100%)';
+  ctx.filter = filterStr;
+
+  ctx.drawImage(imgObj, -imgObj.width / 2 * scale, -imgObj.height / 2 * scale, imgObj.width * scale, imgObj.height * scale);
+  ctx.restore();
+}
+
+// ── Controles ─────────────────────────────────────────────────────────────────
+function aplicarFiltros() {
+  ajustes.brillo = parseInt(document.getElementById('sl-brillo').value);
+  ajustes.contraste = parseInt(document.getElementById('sl-contraste').value);
+  ajustes.saturacion = parseInt(document.getElementById('sl-saturacion').value);
+  document.getElementById('val-brillo').textContent = ajustes.brillo;
+  document.getElementById('val-contraste').textContent = ajustes.contraste;
+  document.getElementById('val-saturacion').textContent = ajustes.saturacion;
+  renderCanvas();
+}
+
+function aplicarZoom() {
+  ajustes.zoom = parseInt(document.getElementById('sl-zoom').value) / 100;
+  document.getElementById('val-zoom').textContent = ajustes.zoom.toFixed(1) + 'x';
+  renderCanvas();
+}
+
+function zoom(factor) {
+  ajustes.zoom = Math.max(0.1, Math.min(10, ajustes.zoom * factor));
+  document.getElementById('sl-zoom').value = ajustes.zoom * 100;
+  document.getElementById('val-zoom').textContent = ajustes.zoom.toFixed(1) + 'x';
+  renderCanvas();
+}
+
+function rotar(deg) {
+  ajustes.rotacion = (ajustes.rotacion + deg) % 360;
+  renderCanvas();
+}
+
+function flip(dir) {
+  if (dir === 'H') ajustes.flipH = !ajustes.flipH;
+  else ajustes.flipV = !ajustes.flipV;
+  renderCanvas();
+}
+
+function toggleInvertir() {
+  ajustes.invertido = !ajustes.invertido;
+  document.getElementById('tog-invertir').classList.toggle('on', ajustes.invertido);
+  renderCanvas();
+}
+
+function resetView() {
+  ajustes = { brillo: 0, contraste: 0, saturacion: 0, zoom: 1, rotacion: 0, invertido: false, flipH: false, flipV: false };
+  offsetX = 0; offsetY = 0;
+  sincronizarSliders();
+  renderCanvas();
+}
+
+function sincronizarSliders() {
+  document.getElementById('sl-brillo').value = ajustes.brillo || 0;
+  document.getElementById('sl-contraste').value = ajustes.contraste || 0;
+  document.getElementById('sl-saturacion').value = ajustes.saturacion || 0;
+  document.getElementById('sl-zoom').value = (ajustes.zoom || 1) * 100;
+  document.getElementById('val-brillo').textContent = ajustes.brillo || 0;
+  document.getElementById('val-contraste').textContent = ajustes.contraste || 0;
+  document.getElementById('val-saturacion').textContent = ajustes.saturacion || 0;
+  document.getElementById('val-zoom').textContent = ((ajustes.zoom || 1)).toFixed(1) + 'x';
+  document.getElementById('tog-invertir').classList.toggle('on', !!ajustes.invertido);
+}
+
+const PRESETS = {
+  normal:   { brillo: 0,   contraste: 0,   saturacion: 0,   invertido: false },
+  hueso:    { brillo: 10,  contraste: 40,  saturacion: -80, invertido: false },
+  pulmones: { brillo: -10, contraste: 60,  saturacion: -90, invertido: false },
+  tejidos:  { brillo: 5,   contraste: 20,  saturacion: 20,  invertido: false },
+  negativo: { brillo: 0,   contraste: 0,   saturacion: 0,   invertido: true  }
+};
+
+function aplicarPreset(nombre) {
+  const p = PRESETS[nombre];
+  if (!p) return;
+  Object.assign(ajustes, p);
+  sincronizarSliders();
+  renderCanvas();
+}
+
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.add('active');
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const ids = ['ajustes', 'reporte', 'info'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.tab-content').forEach(tc => {
+    tc.classList.toggle('active', tc.id === 'tab-' + id);
+  });
+}
+
+// ── Reporte ───────────────────────────────────────────────────────────────────
+const CAMPOS_LABELS = {
+  tecnica: 'Técnica utilizada',
+  campos_pulmonares: 'Campos pulmonares',
+  silueta_cardiaca: 'Silueta cardiaca',
+  mediastino: 'Mediastino',
+  estructuras_oseas: 'Estructuras óseas',
+  estructuras_axilares: 'Estructuras axilares',
+  alineacion: 'Alineación',
+  cuerpos_vertebrales: 'Cuerpos vertebrales',
+  espacios_discales: 'Espacios discales',
+  partes_blandas: 'Partes blandas',
+  articulaciones: 'Articulaciones',
+  distribucion_gaseosa: 'Distribución gaseosa',
+  solidificaciones: 'Solidificaciones',
+  densidad_mamaria: 'Densidad mamaria',
+  masas: 'Masas',
+  calcificaciones: 'Calcificaciones',
+  hallazgos: 'Hallazgos',
+  impresion_diagnostica: 'Impresión diagnóstica',
+  birads: 'Clasificación BIRADS',
+  recomendaciones: 'Recomendaciones',
+  medico_firmante: 'Médico firmante',
+  tecnico: 'Técnico radiólogo'
+};
+
+function renderCamposReporte() {
+  const plantillaId = document.getElementById('rp-plantilla').value;
+  const plantilla = plantillas.find(p => p.id === plantillaId);
+  if (!plantilla) return;
+
+  const container = document.getElementById('campos-reporte');
+  container.innerHTML = '';
+
+  (plantilla.campos || []).forEach(campo => {
+    const div = document.createElement('div');
+    div.className = 'report-section';
+
+    const label = document.createElement('label');
+    label.textContent = CAMPOS_LABELS[campo] || campo;
+
+    let input;
+    if (campo === 'birads') {
+      input = document.createElement('select');
+      input.id = `rp-${campo}`;
+      ['', 'BIRADS 0 - Evaluación incompleta', 'BIRADS 1 - Negativo', 'BIRADS 2 - Benigno',
+       'BIRADS 3 - Probablemente benigno', 'BIRADS 4A - Sospecha baja', 'BIRADS 4B - Sospecha intermedia',
+       'BIRADS 4C - Sospecha moderada', 'BIRADS 5 - Alta sospecha malignidad', 'BIRADS 6 - Malignidad confirmada'].forEach(op => {
+        const o = document.createElement('option'); o.value = op; o.textContent = op || 'Seleccionar...';
+        input.appendChild(o);
+      });
+      input.value = reporteActual[campo] || '';
+    } else if (campo === 'medico_firmante' || campo === 'tecnico') {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.id = `rp-${campo}`;
+      input.value = reporteActual[campo] || '';
+      input.placeholder = CAMPOS_LABELS[campo] || campo;
+    } else {
+      input = document.createElement('textarea');
+      input.id = `rp-${campo}`;
+      input.rows = campo === 'hallazgos' || campo === 'impresion_diagnostica' ? 4 : 3;
+      input.value = reporteActual[campo] || '';
+      input.placeholder = `Ingrese ${(CAMPOS_LABELS[campo] || campo).toLowerCase()}...`;
+    }
+
+    div.appendChild(label);
+    div.appendChild(input);
+    container.appendChild(div);
+  });
+}
+
+function cambiarPlantilla() {
+  renderCamposReporte();
+}
+
+function leerReporte() {
+  const plantillaId = document.getElementById('rp-plantilla').value;
+  const plantilla = plantillas.find(p => p.id === plantillaId);
+  const reporte = { plantilla: plantillaId };
+  (plantilla?.campos || []).forEach(campo => {
+    const el = document.getElementById(`rp-${campo}`);
+    if (el) reporte[campo] = el.value;
+  });
+  return reporte;
+}
+
+// ── Guardar ───────────────────────────────────────────────────────────────────
+async function guardarAjustes() {
+  if (!resultadoId) return toast('Sin resultado ID', 'warn');
+  await saveToAPI({ ajustes });
+  toast('Ajustes guardados ✓');
+}
+
+async function guardarReporte() {
+  if (!resultadoId) return toast('Sin resultado ID', 'warn');
+  const reporte = leerReporte();
+  await saveToAPI({ reporte });
+  toast('Reporte guardado ✓');
+}
+
+async function saveToAPI(body) {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  try {
+    const r = await fetch(`${API_BASE}/imagenologia/workspace/${resultadoId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('Error guardando');
+  } catch (e) {
+    toast('Error al guardar: ' + e.message, 'danger');
+    throw e;
+  }
+}
+
+async function finalizarReporte() {
+  if (!resultadoId) return toast('Sin resultado ID', 'warn');
+  const reporte = leerReporte();
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  try {
+    const r = await fetch(`${API_BASE}/imagenologia/reporte/${resultadoId}/finalizar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reporte })
+    });
+    if (!r.ok) throw new Error('Error finalizando');
+    toast('Reporte finalizado y firmado ✅');
+  } catch (e) {
+    toast('Error: ' + e.message, 'danger');
+  }
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+async function handleFileInput(input) {
+  const files = input.files;
+  if (!files.length) return;
+
+  for (const file of files) {
+    const src = URL.createObjectURL(file);
+    localImages.push(src);
+  }
+
+  if (resultadoId) {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    const fd = new FormData();
+    for (const f of files) fd.append('imagenes', f);
+    try {
+      const r = await fetch(`${API_BASE}/imagenologia/upload/${resultadoId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      });
+      const d = await r.json();
+      if (d.success) {
+        imagenes = [...imagenes, ...d.data];
+        toast(`${d.data.length} imagen(es) subida(s) ✓`);
+      }
+    } catch {}
+  }
+
+  renderThumbnails();
+  if (localImages.length === 1 && imagenes.length === 0) {
+    cargarImagenLocal(localImages[0]);
+  } else if (imagenes.length > 0) {
+    cargarImagen(imagenes[imagenes.length - 1]);
+  }
+  input.value = '';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const fakeInput = { files: e.dataTransfer.files };
+  handleFileInput(fakeInput);
+}
+
+// ── Info ──────────────────────────────────────────────────────────────────────
+function renderInfo(data) {
+  if (!data) return;
+  const pac = data.paciente || {};
+  const est = data.estudio || {};
+  const html = `
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <tr><td style="color:#888; padding:4px 0;">Paciente</td><td><strong>${pac.nombre || ''} ${pac.apellido || ''}</strong></td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Cédula</td><td>${pac.cedula || '–'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Sexo</td><td>${pac.sexo === 'M' ? 'Masculino' : 'Femenino'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Estudio</td><td>${est.nombre || '–'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Código</td><td>${est.codigo || '–'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Categoría</td><td>${est.categoria || '–'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Estado</td><td><span style="color:var(--accent)">${data.estado || '–'}</span></td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Código muestra</td><td>${data.codigoMuestra || '–'}</td></tr>
+      <tr><td style="color:#888; padding:4px 0;">Imágenes</td><td>${(data.visor?.imagenes?.length || 0)} archivo(s)</td></tr>
+    </table>
+  `;
+  document.getElementById('info-content').innerHTML = html;
+}
+
+// ── Imprimir ──────────────────────────────────────────────────────────────────
+function imprimirReporte() {
+  window.print();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'danger' ? 'var(--danger)' : type === 'warn' ? 'var(--warn)' : 'var(--success)';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── Inicio ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

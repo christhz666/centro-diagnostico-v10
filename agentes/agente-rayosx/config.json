@@ -1,0 +1,19 @@
+{
+    "servidor": {
+        "url": "https://TU-DOMINIO-O-IP-VPS.com",
+        "apiKey": ""
+    },
+    "carpetaMonitoreo": "C:\\DICOM\\salida",
+    "extensiones": [
+        ".dcm",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".bmp",
+        ".tiff",
+        ".tif"
+    ],
+    "carpetaProcesados": "procesados",
+    "intervaloVerificacion": 5000,
+    "logArchivo": "agente-rayosx.log"
+}

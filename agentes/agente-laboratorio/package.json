@@ -1,0 +1,14 @@
+{
+    "name": "agente-laboratorio",
+    "version": "1.0.0",
+    "description": "Agente local para recolectar resultados de equipos de laboratorio y enviarlos al VPS",
+    "main": "agente.js",
+    "scripts": {
+        "start": "node agente.js",
+        "test": "node agente.js --test"
+    },
+    "dependencies": {
+        "serialport": "^12.0.0",
+        "node-fetch": "^2.7.0"
+    }
+}

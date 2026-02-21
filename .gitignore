@@ -1,0 +1,11 @@
+node_modules/
+.env
+agentes/*/dist/
+agentes/*/node_modules/
+uploads/
+*.log
+cola_pendiente.json
+test_lis.js
+test_lis_directo.js
+_tmp_query.js
+frontend/node_modules/

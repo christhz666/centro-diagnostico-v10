@@ -1,0 +1,221 @@
+const User = require('../models/User');
+
+// @desc    Obtener roles disponibles
+// @route   GET /api/admin/roles
+exports.getRoles = async (req, res, next) => {
+    res.json([
+        { value: 'admin', label: 'Administrador' },
+        { value: 'medico', label: 'Médico' },
+        { value: 'recepcion', label: 'Recepcionista' },
+        { value: 'laboratorio', label: 'Laboratorista' },
+        { value: 'paciente', label: 'Paciente' }
+    ]);
+};
+
+// @desc    Obtener todos los usuarios
+// @route   GET /api/admin/usuarios
+exports.getUsuarios = async (req, res, next) => {
+    try {
+        let filter = {};
+
+        if (req.query.role) filter.role = req.query.role;
+        if (req.query.activo !== undefined) filter.activo = req.query.activo === 'true';
+
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search, 'i');
+            filter.$or = [
+                { nombre: searchRegex },
+                { apellido: searchRegex },
+                { email: searchRegex }
+            ];
+        }
+
+        const usuarios = await User.find(filter)
+            .select('-password')
+            .sort('-createdAt');
+
+        res.json({
+            success: true,
+            count: usuarios.length,
+            data: usuarios
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Obtener un usuario
+// @route   GET /api/admin/usuarios/:id
+exports.getUsuario = async (req, res, next) => {
+    try {
+        const usuario = await User.findById(req.params.id).select('-password');
+
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        res.json({ success: true, data: usuario });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Crear usuario (admin)
+// @route   POST /api/admin/usuarios
+exports.createUsuario = async (req, res, next) => {
+    try {
+        // Normalizar: el frontend puede enviar 'rol' o 'role'
+        if (req.body.rol && !req.body.role) {
+            req.body.role = req.body.rol;
+        }
+        delete req.body.rol;
+
+        // Evitar que Mongoose registre strings vacíos en índices Unique Sparse
+        if (!req.body.email || req.body.email.trim() === '') {
+            req.body.email = undefined;
+        }
+        if (!req.body.username || req.body.username.trim() === '') {
+            req.body.username = undefined;
+        }
+
+        const usuario = await User.create(req.body);
+
+        res.status(201).json({
+            success: true,
+            message: 'Usuario creado exitosamente',
+            data: {
+                id: usuario._id,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
+                email: usuario.email,
+                role: usuario.role,
+                activo: usuario.activo
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Actualizar usuario
+// @route   PUT /api/admin/usuarios/:id
+exports.updateUsuario = async (req, res, next) => {
+    try {
+        // No permitir cambiar password desde aquí
+        delete req.body.password;
+        // Normalizar rol/role
+        if (req.body.rol && !req.body.role) {
+            req.body.role = req.body.rol;
+        }
+        delete req.body.rol;
+
+        // Evitar que Mongoose registre strings vacíos en índices Unique Sparse
+        if (req.body.email !== undefined && req.body.email.trim() === '') {
+            req.body.email = undefined;
+        }
+        if (req.body.username !== undefined && req.body.username.trim() === '') {
+            req.body.username = undefined;
+        }
+
+        const usuario = await User.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Usuario actualizado',
+            data: usuario
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Activar/Desactivar usuario
+// @route   PATCH /api/admin/usuarios/:id/toggle
+exports.toggleUsuario = async (req, res, next) => {
+    try {
+        const usuario = await User.findById(req.params.id);
+
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        // No permitir desactivarse a sí mismo
+        if (usuario._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: 'No puede desactivar su propia cuenta'
+            });
+        }
+
+        usuario.activo = !usuario.activo;
+        await usuario.save({ validateBeforeSave: false });
+
+        res.json({
+            success: true,
+            message: `Usuario ${usuario.activo ? 'activado' : 'desactivado'}`,
+            data: { activo: usuario.activo }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Reset password de usuario
+// @route   PATCH /api/admin/usuarios/:id/reset-password
+exports.resetPassword = async (req, res, next) => {
+    try {
+        const usuario = await User.findById(req.params.id);
+
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        usuario.password = req.body.newPassword || 'Password123!';
+        await usuario.save();
+
+        res.json({
+            success: true,
+            message: 'Contraseña reseteada exitosamente'
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Obtener médicos
+// @route   GET /api/admin/medicos
+exports.getMedicos = async (req, res, next) => {
+    try {
+        const medicos = await User.find({ role: 'medico', activo: true })
+            .select('nombre apellido especialidad licenciaMedica email telefono')
+            .sort('apellido nombre');
+
+        res.json({
+            success: true,
+            count: medicos.length,
+            data: medicos
+        });
+    } catch (error) {
+        next(error);
+    }
+};
