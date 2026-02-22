@@ -3,7 +3,7 @@ const router = express.Router();
 const Configuracion = require('../models/Configuracion');
 const { protect, authorize } = require('../middleware/auth');
 
-const MAX_CONFIG_VALUE_LENGTH = 1000000;
+const MAX_CONFIG_VALUE_LENGTH = 10000000; // Incrementado a 10MB
 
 // GET /api/configuracion/ - Get all configuration (requires auth)
 router.get('/', protect, async (req, res) => {
@@ -45,8 +45,8 @@ router.put('/', protect, authorize('admin'), async (req, res) => {
             message: `${actualizados.length} configuraciones actualizadas`,
             actualizados
         });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error al guardar configuración:', error);
+        res.status(500).json({ error: error.message || 'Error interno al guardar la configuración' });
     }
 });
 
