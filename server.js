@@ -18,6 +18,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 // Inicializar Express
 const app = express();
+app.set('trust proxy', 1);
 
 const getLocalIps = () => {
     const interfaces = os.networkInterfaces();

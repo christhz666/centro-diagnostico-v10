@@ -58,9 +58,13 @@ const Login = ({ onLogin }) => {
             .catch(() => { });
 
         const savedUsername = localStorage.getItem('savedUsername');
+        const savedPassword = localStorage.getItem('savedPassword');
         if (savedUsername) {
             setUsername(savedUsername);
             setRememberMe(true);
+        }
+        if (savedPassword) {
+            setPassword(savedPassword);
         }
 
         const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -84,8 +88,10 @@ const Login = ({ onLogin }) => {
 
                 if (rememberMe) {
                     localStorage.setItem('savedUsername', username);
+                    localStorage.setItem('savedPassword', password);
                 } else {
                     localStorage.removeItem('savedUsername');
+                    localStorage.removeItem('savedPassword');
                 }
 
                 onLogin(data.usuario, data.access_token);

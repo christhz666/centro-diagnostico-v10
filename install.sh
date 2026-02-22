@@ -2,6 +2,7 @@
 # ============================================================
 #  INSTALADOR CENTRO DIAGNÓSTICO v10 — VPS Oracle
 #  Ejecutar como: bash install.sh
+#  Todo queda listo desde que termina.
 # ============================================================
 
 set -e
@@ -11,11 +12,19 @@ echo "║  🏥 Centro Diagnóstico v10 — Instalador VPS     ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
-APP_DIR="/home/ubuntu/centro-diagnostico"
+# Detectar si estamos dentro del repo clonado o no
+if [ -f "server.js" ]; then
+    APP_DIR="$(pwd)"
+else
+    APP_DIR="$HOME/centro-diagnostico"
+fi
 REPO="https://github.com/christhz666/centro-diagnostico-v10.git"
 
+# Detectar IP pública
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "TU-IP-AQUI")
+
 # ── 1. Dependencias del sistema ──────────────────────────────
-echo "📦 [1/6] Verificando dependencias del sistema..."
+echo "📦 [1/8] Verificando dependencias del sistema..."
 
 if ! command -v node &> /dev/null; then
     echo "   Instalando Node.js 20..."
@@ -41,95 +50,145 @@ echo "   ✅ PM2 $(pm2 --version)"
 
 # ── 2. Clonar o actualizar repositorio ───────────────────────
 echo ""
-echo "📥 [2/6] Descargando código..."
+echo "📥 [2/8] Descargando código..."
 
-if [ -d "$APP_DIR" ]; then
-    echo "   Carpeta existente, actualizando..."
+if [ -f "$APP_DIR/server.js" ]; then
+    echo "   ✅ Código ya existe en $APP_DIR"
     cd "$APP_DIR"
-    git pull origin main 2>/dev/null || {
-        echo "   Repositorio diferente, reemplazando..."
-        cd /home/ubuntu
-        mv "$APP_DIR" "${APP_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
-        git clone "$REPO" "$APP_DIR"
-        cd "$APP_DIR"
-    }
 else
     git clone "$REPO" "$APP_DIR"
     cd "$APP_DIR"
+    echo "   ✅ Código clonado en $APP_DIR"
 fi
-echo "   ✅ Código descargado en $APP_DIR"
 
-# ── 3. Instalar dependencias Node ────────────────────────────
+# ── 3. Instalar dependencias backend ─────────────────────────
 echo ""
-echo "📦 [3/6] Instalando dependencias..."
-npm install --production
-echo "   ✅ Dependencias instaladas"
+echo "📦 [3/8] Instalando dependencias del backend..."
+npm install --production 2>&1 | tail -1
+echo "   ✅ Backend listo"
 
-# ── 4. Configurar .env ───────────────────────────────────────
+# ── 4. Compilar frontend ─────────────────────────────────────
 echo ""
-echo "⚙️  [4/6] Configurando variables de entorno..."
+echo "🔨 [4/8] Compilando frontend (esto toma 1-2 min)..."
+cd "$APP_DIR/frontend"
+npm install 2>&1 | tail -1
+export NODE_OPTIONS="--max-old-space-size=1024"
+npm run build 2>&1 | tail -5
+cd "$APP_DIR"
+echo "   ✅ Frontend compilado"
+
+# ── 5. Configurar .env ───────────────────────────────────────
+echo ""
+echo "⚙️  [5/8] Configurando variables de entorno..."
 
 if [ -f ".env" ]; then
-    echo "   ✅ .env ya existe, conservando configuración actual"
-    # Verificar que tenga JWT_SECRET
+    echo "   ✅ .env ya existe, conservando configuración"
     if ! grep -q "JWT_SECRET" .env; then
         JWT=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
         echo "JWT_SECRET=$JWT" >> .env
         echo "   🔑 JWT_SECRET agregado"
     fi
 else
-    # Crear .env desde cero
     JWT=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-    
-    # Detectar IP pública del VPS
-    PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "TU-IP-AQUI")
-    
     cat > .env << EOF
-# ── Servidor ──────────────────────────────────────
 NODE_ENV=production
 PORT=5000
 HOST=0.0.0.0
-
-# ── MongoDB ───────────────────────────────────────
 MONGODB_URI=mongodb://localhost:27017/centro_diagnostico
-
-# ── JWT (generado automáticamente) ────────────────
 JWT_SECRET=$JWT
 JWT_EXPIRES_IN=7d
-
-# ── CORS ──────────────────────────────────────────
-CORS_ORIGINS=http://${PUBLIC_IP}:5000,http://localhost:5000,http://localhost:3000
-FRONTEND_URL=http://${PUBLIC_IP}:5000
+CORS_ORIGINS=http://${PUBLIC_IP}:5000,http://${PUBLIC_IP},http://localhost:5000,http://localhost:3000
+FRONTEND_URL=http://${PUBLIC_IP}
 PUBLIC_API_URL=http://${PUBLIC_IP}:5000
-
-# ── Rate Limiting ─────────────────────────────────
 RATE_LIMIT_MAX=500
 RATE_LIMIT_LOGIN_MAX=20
-
-# ── DICOM / Rayos X ──────────────────────────────
 DICOM_MODE=none
 DICOM_FOLDER=./uploads/dicom
 EOF
-    echo "   ✅ .env creado con IP: $PUBLIC_IP"
-    echo "   🔑 JWT_SECRET generado automáticamente"
+    echo "   ✅ .env creado (IP: $PUBLIC_IP)"
 fi
 
-# ── 5. Abrir firewall ────────────────────────────────────────
+# ── 6. Configurar trust proxy en Express ─────────────────────
 echo ""
-echo "🔥 [5/6] Configurando firewall..."
+echo "🔧 [6/8] Configurando trust proxy..."
+if ! grep -q "trust proxy" server.js; then
+    sed -i "s/const app = express();/const app = express();\napp.set('trust proxy', 1);/" server.js
+    echo "   ✅ Trust proxy configurado"
+else
+    echo "   ✅ Trust proxy ya existe"
+fi
+
+# ── 7. Configurar Nginx ──────────────────────────────────────
+echo ""
+echo "🌐 [7/8] Configurando Nginx..."
+
+if command -v nginx &> /dev/null; then
+    # Crear config de Nginx apuntando al directorio correcto
+    NGINX_CONF=""
+    if [ -d "/etc/nginx/conf.d" ]; then
+        NGINX_CONF="/etc/nginx/conf.d/centro-diagnostico.conf"
+    elif [ -d "/etc/nginx/sites-available" ]; then
+        NGINX_CONF="/etc/nginx/sites-available/centro-diagnostico"
+    fi
+
+    if [ -n "$NGINX_CONF" ]; then
+        sudo tee "$NGINX_CONF" > /dev/null << EOF
+server {
+    listen 80;
+    server_name $PUBLIC_IP;
+    client_max_body_size 100M;
+
+    root $APP_DIR/frontend/build;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    location /uploads {
+        alias $APP_DIR/uploads;
+    }
+}
+EOF
+        # Activar si usa sites-enabled
+        if [ -d "/etc/nginx/sites-enabled" ]; then
+            sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
+            sudo rm -f /etc/nginx/sites-enabled/default
+        fi
+
+        sudo nginx -t && sudo systemctl restart nginx
+        echo "   ✅ Nginx configurado → http://$PUBLIC_IP"
+    fi
+else
+    echo "   ⚠️ Nginx no instalado. Instálalo con: sudo apt install nginx"
+fi
+
+# ── 8. Firewall + PM2 ────────────────────────────────────────
+echo ""
+echo "🚀 [8/8] Iniciando servidor..."
+
+# Firewall
 sudo iptables -C INPUT -p tcp --dport 5000 -j ACCEPT 2>/dev/null || {
     sudo iptables -I INPUT -p tcp --dport 5000 -j ACCEPT
-    echo "   Puerto 5000 abierto"
 }
-# Intentar guardar reglas (puede fallar si no tiene netfilter-persistent)
-sudo netfilter-persistent save 2>/dev/null || sudo iptables-save | sudo tee /etc/iptables.rules > /dev/null 2>&1 || true
-echo "   ✅ Puerto 5000 accesible"
+sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || {
+    sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+}
+sudo netfilter-persistent save 2>/dev/null || true
 
-# ── 6. Iniciar con PM2 ──────────────────────────────────────
-echo ""
-echo "🚀 [6/6] Iniciando servidor..."
-pm2 stop centro-diagnostico 2>/dev/null || true
-pm2 delete centro-diagnostico 2>/dev/null || true
+# PM2
+pm2 delete all 2>/dev/null || true
+cd "$APP_DIR"
 pm2 start server.js --name centro-diagnostico
 pm2 startup 2>/dev/null || true
 pm2 save
@@ -139,17 +198,13 @@ echo "╔═══════════════════════�
 echo "║  ✅ ¡INSTALACIÓN COMPLETADA!                     ║"
 echo "╠══════════════════════════════════════════════════╣"
 echo "║                                                  ║"
-echo "║  Tu sistema está disponible en:                  ║"
-echo "║  👉 http://$PUBLIC_IP:5000                       ║"
+echo "║  Tu sistema está en:                             ║"
+echo "║  👉 http://$PUBLIC_IP                            ║"
 echo "║                                                  ║"
 echo "║  Comandos útiles:                                ║"
-echo "║  pm2 status        → ver estado                  ║"
-echo "║  pm2 logs          → ver logs en vivo            ║"
-echo "║  pm2 restart all   → reiniciar                   ║"
+echo "║  pm2 status       → ver estado                   ║"
+echo "║  pm2 logs         → ver logs en vivo             ║"
+echo "║  pm2 restart all  → reiniciar                    ║"
 echo "║                                                  ║"
 echo "╚══════════════════════════════════════════════════╝"
-echo ""
-echo "⚠️  RECUERDA abrir el puerto 5000 en Oracle Cloud:"
-echo "   Networking → VCN → Security Lists → Add Ingress Rule"
-echo "   Source: 0.0.0.0/0 | Port: 5000 | Protocol: TCP"
 echo ""
