@@ -44,6 +44,13 @@ fn crear_tablas(conn: &Connection) -> Result<()> {
     )?;
 
     conn.execute(
+        "CREATE TABLE IF NOT EXISTS sucursales (
+            _id TEXT PRIMARY KEY,
+            nombre TEXT
+        )",
+        [],
+    )?;
+    conn.execute(
         "CREATE TABLE IF NOT EXISTS estudios (
             _id TEXT PRIMARY KEY,
             nombre TEXT,

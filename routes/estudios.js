@@ -7,6 +7,9 @@ const {
 const { protect, authorize } = require('../middleware/auth');
 const { estudioValidation, idValidation } = require('../middleware/validators');
 
+// Ruta Abierta para Sincronización Inicial Offline
+router.get('/offline-sync', getEstudios);
+
 router.use(protect);
 
 router.get('/categorias', getCategorias);

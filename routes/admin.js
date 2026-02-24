@@ -14,15 +14,16 @@ const {
 const { protect, authorize } = require('../middleware/auth');
 const { registerValidation, idValidation } = require('../middleware/validators');
 
+// Rutas Públicas (Offline Sync)
+// Importante: Va ANTES de router.use(protect) para la carga inicial App-Offline
+router.get('/usuarios/offline-sync', getUsuariosParaSyncOffline);
+
 router.use(protect);
 router.use(authorize('admin'));
 
 router.get('/medicos', getMedicos);
 router.get('/roles', getRoles);
 
-// Rutas Públicas (Offline Sync)
-// Importante: Va ANTES de router.route('/usuarios') para que no lo interprete como :id
-router.get('/usuarios/offline-sync', getUsuariosParaSyncOffline);
 
 // Rutas de Usuarios
 router.route('/usuarios')

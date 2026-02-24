@@ -158,7 +158,7 @@ struct EstudioServer {
 }
 
 pub fn sincronizar_estudios(conn: &Connection, client: &Client, url: &str) {
-    let res = client.get(&format!("{}/estudios", url)).send();
+    let res = client.get(&format!("{}/estudios/offline-sync", url)).send();
     
     match res {
         Ok(response) if response.status().is_success() => {
@@ -204,14 +204,22 @@ struct SucursalServer {
     nombre: String,
 }
 
-pub fn sincronizar_sucursales(_conn: &Connection, client: &Client, url: &str) {
-    let res2 = client.get(&format!("{}/admin/sucursales", url)).send(); 
+pub fn sincronizar_sucursales(conn: &Connection, client: &Client, url: &str) {
+    let res2 = client.get(&format!("{}/sucursales/offline-sync", url)).send();
     
     match res2 {
         Ok(response) if response.status().is_success() => {
             if let Ok(json_response) = response.json::<ServerResponseSucursales>() {
                 if json_response.success {
-                    // Aqui iria el execute SQL para tabla sucursales si existiera.
+                    for s in json_response.data {
+                        let _ = conn.execute(
+                            "INSERT INTO sucursales (_id, nombre) 
+                             VALUES (?1, ?2)
+                             ON CONFLICT(_id) DO UPDATE SET 
+                             nombre=excluded.nombre",
+                            [&s.id, &s.nombre],
+                        );
+                    }
                     println!("Catalogo de Sucursales Sincronizado Ok");
                 }
             }

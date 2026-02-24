@@ -4,6 +4,9 @@ const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Ruta Abierta para la Inyección Offline desde Windows Tauri (Rust)
+router.get('/offline-sync', getSucursales);
+
 router.route('/')
     .get(protect, getSucursales)
     .post(protect, authorize('admin'), createSucursal);
