@@ -1,0 +1,25 @@
+
+> app-offline@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 1 modules transformed.
+[31m✗[39m Build failed in 119ms
+[31merror during build:
+[31m[vite:build-html] src/index.js (9:2): Expression expected[31m
+file: [36mC:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/src/index.js:9:2 (C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/index.html)[31m
+[33m
+ 7: const root = ReactDOM.createRoot(document.getElementById('root'));
+ 8: root.render(
+ 9:   <React.StrictMode>
+      ^
+10:     <App />
+11:   </React.StrictMode>
+[31m
+    at getRollupError (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at ParseError.initialise (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/node-entry.js:14465:28)
+    at convertNode (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/node-entry.js:16437:10)
+    at convertProgram (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/node-entry.js:15677:12)
+    at Module.setSource (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/node-entry.js:17392:24)
+    at async ModuleLoader.addModuleSource (file:///C:/Users/rossy/Downloads/paquete-final/centro-diagnostico-v8/apps-escritorio/App-Offline/node_modules/rollup/dist/es/shared/node-entry.js:21497:13)[39m

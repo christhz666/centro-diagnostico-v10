@@ -45,6 +45,7 @@ router.put('/', protect, authorize('admin'), async (req, res) => {
             message: `${actualizados.length} configuraciones actualizadas`,
             actualizados
         });
+    } catch (error) {
         console.error('Error al guardar configuración:', error);
         res.status(500).json({ error: error.message || 'Error interno al guardar la configuración' });
     }

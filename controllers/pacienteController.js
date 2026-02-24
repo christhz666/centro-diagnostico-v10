@@ -8,10 +8,11 @@ exports.getPacientes = async (req, res, next) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
-        
+
         // Filtros
         let filter = { activo: true };
-        
+        if (req.sucursalId) filter.sucursal = req.sucursalId;
+
         // Búsqueda por texto
         if (req.query.search) {
             const searchRegex = new RegExp(req.query.search, 'i');
@@ -83,7 +84,9 @@ exports.getPaciente = async (req, res, next) => {
 // @route   GET /api/pacientes/cedula/:cedula
 exports.getPacienteByCedula = async (req, res, next) => {
     try {
-        const paciente = await Paciente.findOne({ cedula: req.params.cedula });
+        const filter = { cedula: req.params.cedula };
+        if (req.sucursalId) filter.sucursal = req.sucursalId;
+        const paciente = await Paciente.findOne(filter);
 
         if (!paciente) {
             return res.status(404).json({

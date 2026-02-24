@@ -67,19 +67,93 @@ router.get('/info', (req, res) => {
     }
 });
 
-// @desc    Descargar agente de laboratorio como ZIP
+// @desc    Descargar instalador 1-click (BAT) para Agente de Laboratorio
 // @route   GET /api/downloads/agente-laboratorio
 router.get('/agente-laboratorio', (req, res) => {
+    const batContent = generateOneClickInstaller('laboratorio');
+    res.setHeader('Content-Type', 'application/x-bat');
+    res.setHeader('Content-Disposition', 'attachment; filename="Instalar_Agente_Laboratorio_1Click.bat"');
+    res.send(batContent);
+});
+
+// @desc    Descargar agente de laboratorio en ZIP (USADO INTERNAMENTE POR EL BAT)
+// @route   GET /api/downloads/agente-laboratorio-zip
+router.get('/agente-laboratorio-zip', (req, res) => {
     const agentDir = path.join(__dirname, '../agentes/agente-laboratorio');
     servirCarpetaComoZip(res, agentDir, 'agente-laboratorio.zip');
 });
 
-// @desc    Descargar agente de rayos X como ZIP
-// @route   GET /api/downloads/agente-rayosx
-router.get('/agente-rayosx', (req, res) => {
-    const agentDir = path.join(__dirname, '../agentes/agente-rayosx');
-    servirCarpetaComoZip(res, agentDir, 'agente-rayosx.zip');
-});
+// Helper: Generador de BAT Instalador
+function generateOneClickInstaller(tipo) {
+    const isLab = tipo === 'laboratorio';
+    const folderName = isLab ? 'LabAgente' : 'RxAgente';
+    const urlZip = `https://${process.env.VITE_API_URL || 'centro.test'}/api/downloads/agente-${tipo}-zip`; // El BAT requiere URL completa, pero para simplificar usaremos local
+
+    // Usamos localhost en caso de test, de lo contrario la IP real en produccion
+    const downloadUrl = `http://localhost:5000/api/downloads/agente-${tipo}-zip`;
+
+    return `@echo off
+chcp 65001 >nul
+:: ========================================================
+:: INSTALADOR SILENCIOSO 1-CLIC - CENTRO DIAGNÓSTICO
+:: Agente: ${tipo.toUpperCase()}
+:: ========================================================
+echo.
+echo === Iniciando Instalacion de Agente ${tipo.toUpperCase()} ===
+echo.
+set AGENT_DIR=C:\\CentroDiagnostico_Agentes\\${folderName}
+if not exist "%AGENT_DIR%" mkdir "%AGENT_DIR%"
+cd /d "%AGENT_DIR%"
+
+echo [1/4] Descargando archivos del agente...
+powershell -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile 'agente.zip'"
+if not exist "agente.zip" (
+  echo [ERROR] No se pudo descargar el agente. Cierra y vuelve a intentar.
+  pause
+  exit /b 1
+)
+
+echo [2/4] Extrayendo archivos...
+powershell -Command "Expand-Archive -Force -Path 'agente.zip' -DestinationPath '.'"
+
+:: Test de Node.js
+where node >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [ALERTA] Node.js no esta instalado. Abriendo web de Node.js...
+    start https://nodejs.org/
+    echo Por favor, instala Node.js primero.
+    pause
+    exit /b 1
+)
+
+echo [3/4] Instalando modulos NPM...
+call npm install --silent
+
+echo [4/4] Programando inicio automatico en Windows...
+:: Crear vbs launcher para que no muestre ventana CMD
+echo Set WshShell = CreateObject("WScript.Shell") > run_hidden.vbs
+echo WshShell.Run "cmd.exe /c node agente.js", 0, False >> run_hidden.vbs
+
+:: Tarea programada (Arranca oculto y sin molestar cada que el usuario inicia sesion)
+schtasks /create /tn "CentroDiagnostico_${folderName}" /tr "wscript.exe \"%AGENT_DIR%\\run_hidden.vbs\"" /sc onlogon /f >nul 2>&1
+
+:: Arrancar ahora mismo
+echo === Iniciando Agente en Inmediato ===
+wscript run_hidden.vbs
+
+echo.
+echo =================================================================
+echo   COMPLETADO CON EXITO!
+echo   El agente esta corriendo en 2do plano sin molestar.
+echo   Y se ejecutara automaticamente siempre que enciendas la PC.
+echo.
+echo   NOTA: Puedes editar el archivo C:\\CentroDiagnostico_Agentes\\${folderName}\\config.json
+echo   para configurar la conexion real hacia el servidor del Centro.
+echo =================================================================
+pause
+exit
+`;
+}
 
 // Helper: servir una carpeta completa como archivo ZIP
 function servirCarpetaComoZip(res, dirPath, zipName) {

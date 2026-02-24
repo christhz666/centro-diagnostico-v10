@@ -114,10 +114,22 @@ const Dashboard = () => {
     const hora = new Date().getHours();
     const saludo = hora < 12 ? '🌤️ Buenos días' : hora < 18 ? '☀️ Buenas tardes' : '🌙 Buenas noches';
 
-    useEffect(() => { loadDashboard(); }, []);
+    useEffect(() => {
+        loadDashboard();
 
-    const loadDashboard = async () => {
-        setLoading(true); setError('');
+        // Auto-refresh silencioso cada 20 segundos
+        const interval = setInterval(() => {
+            loadDashboard(true);
+        }, 20000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const loadDashboard = async (isSilent = false) => {
+        if (!isSilent) {
+            setLoading(true);
+            setError('');
+        }
         try {
             const [sRes, cRes] = await Promise.all([api.getDashboardStats(), api.getCitasHoy()]);
             const sData = sRes?.data || sRes;
@@ -126,9 +138,9 @@ const Dashboard = () => {
             if (Array.isArray(cData)) setCitasHoy(cData);
             else if (cData?.citas) setCitasHoy(cData.citas);
         } catch (e) {
-            setError(e.message || 'Error al cargar datos');
+            if (!isSilent) setError(e.message || 'Error al cargar datos');
         } finally {
-            setLoading(false);
+            if (!isSilent) setLoading(false);
         }
     };
 

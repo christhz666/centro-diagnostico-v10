@@ -108,7 +108,7 @@ exports.createFactura = async (req, res, next) => {
         req.body.datosCliente = {
             nombre: `${paciente.nombre} ${paciente.apellido}`,
             cedula: paciente.cedula,
-            direccion: paciente.direccion ? 
+            direccion: paciente.direccion ?
                 [paciente.direccion.calle, paciente.direccion.sector].filter(Boolean).join(', ') : '',
             telefono: paciente.telefono,
             email: paciente.email
@@ -120,7 +120,7 @@ exports.createFactura = async (req, res, next) => {
                 item.subtotal = (item.precioUnitario * item.cantidad) - (item.descuento || 0);
                 return sum + item.subtotal;
             }, 0);
-            
+
             req.body.itbis = req.body.aplicarItbis ? req.body.subtotal * 0.18 : 0;
             req.body.total = req.body.subtotal - (req.body.descuento || 0) + req.body.itbis;
         }
@@ -154,7 +154,14 @@ exports.createFactura = async (req, res, next) => {
             await Promise.all(resultadosPromises);
         }
 
-        await factura.populate('paciente', 'nombre apellido cedula');
+        await factura.populate([
+            { path: 'paciente', select: 'nombre apellido cedula' },
+            { path: 'items.estudio', select: 'nombre codigo categoria' }
+        ]);
+
+        // Disparar sincronización con Orthanc (si aplica, en background)
+        const orthancService = require('../services/orthancService');
+        orthancService.enviarPacienteARayosX(factura.paciente, factura, req.body.cita, factura.items);
 
         res.status(201).json({
             success: true,
@@ -210,34 +217,42 @@ exports.getResumen = async (req, res, next) => {
         const [resumenMes, resumenHoy, porMetodo] = await Promise.all([
             Factura.aggregate([
                 { $match: { estado: { $ne: 'anulada' }, createdAt: { $gte: inicioMes } } },
-                { $group: {
-                    _id: null,
-                    totalFacturado: { $sum: '$total' },
-                    totalCobrado: { $sum: '$montoPagado' },
-                    cantidadFacturas: { $sum: 1 }
-                }}
+                {
+                    $group: {
+                        _id: null,
+                        totalFacturado: { $sum: '$total' },
+                        totalCobrado: { $sum: '$montoPagado' },
+                        cantidadFacturas: { $sum: 1 }
+                    }
+                }
             ]),
             Factura.aggregate([
-                { $match: { 
-                    estado: { $ne: 'anulada' },
-                    createdAt: { 
-                        $gte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()),
-                        $lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59)
+                {
+                    $match: {
+                        estado: { $ne: 'anulada' },
+                        createdAt: {
+                            $gte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()),
+                            $lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59)
+                        }
                     }
-                }},
-                { $group: {
-                    _id: null,
-                    total: { $sum: '$total' },
-                    cantidad: { $sum: 1 }
-                }}
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$total' },
+                        cantidad: { $sum: 1 }
+                    }
+                }
             ]),
             Factura.aggregate([
                 { $match: { estado: { $ne: 'anulada' }, createdAt: { $gte: inicioMes } } },
-                { $group: {
-                    _id: '$metodoPago',
-                    total: { $sum: '$total' },
-                    cantidad: { $sum: 1 }
-                }}
+                {
+                    $group: {
+                        _id: '$metodoPago',
+                        total: { $sum: '$total' },
+                        cantidad: { $sum: 1 }
+                    }
+                }
             ])
         ]);
 

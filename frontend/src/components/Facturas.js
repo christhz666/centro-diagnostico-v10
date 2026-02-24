@@ -12,33 +12,82 @@ const Facturas = () => {
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [citaSeleccionada, setCitaSeleccionada] = useState(null);
   const [facturaImprimir, setFacturaImprimir] = useState(null);
+  const [turnoActivo, setTurnoActivo] = useState(null);
 
   useEffect(() => {
     fetchFacturas();
     fetchCitasPendientes();
+    fetchTurnoActivo();
+
+    // Auto-Sincronización Silenciosa cada 20 segundos
+    const interval = setInterval(() => {
+      fetchFacturas(true);
+      fetchCitasPendientes(true);
+      // fetchTurnoActivo(); // Opcional, pero asumimos que el turno cambia poco
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, [filtroEstado]);
 
-  const fetchFacturas = async () => {
+  const fetchTurnoActivo = async () => {
+    try {
+      const response = await api.getTurnoActivo();
+      if (response && response.data) setTurnoActivo(response.data);
+      else setTurnoActivo(null);
+    } catch (err) {
+      console.error('Error cargando turno:', err);
+      setTurnoActivo(null);
+    }
+  };
+
+  const abrirTurnoManual = async () => {
     try {
       setLoading(true);
-      const params = filtroEstado ? { estado: filtroEstado } : {};
-      const response = await api.getFacturas(params);
-      setFacturas(Array.isArray(response) ? response : []);
+      await api.abrirTurnoCaja();
+      fetchTurnoActivo();
+      alert('Turno de caja abierto correctamente. Ya puede facturar hoy.');
     } catch (err) {
-      console.error(err);
-      setFacturas([]);
+      alert('Error abriendo caja: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCitasPendientes = async () => {
+  const cerrarTurnoManual = async () => {
+    if (!window.confirm('¿Está segura que desea CERRAR la caja de hoy? Las facturas siguientes irán al día de mañana.')) return;
+    try {
+      setLoading(true);
+      await api.cerrarTurnoCaja();
+      setTurnoActivo(null);
+      alert('Caja cerrada con éxito.');
+    } catch (err) {
+      alert('Error cerrando caja: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFacturas = async (isSilent = false) => {
+    try {
+      if (!isSilent) setLoading(true);
+      const params = filtroEstado ? { estado: filtroEstado } : {};
+      const response = await api.getFacturas(params);
+      setFacturas(Array.isArray(response) ? response : []);
+    } catch (err) {
+      console.error(err);
+      if (!isSilent) setFacturas([]);
+    } finally {
+      if (!isSilent) setLoading(false);
+    }
+  };
+
+  const fetchCitasPendientes = async (isSilent = false) => {
     try {
       const response = await api.getCitas({ pagado: false });
       setCitasPendientes((Array.isArray(response) ? response : []).filter(c => c.estado === 'completada' || c.estado === 'programada'));
     } catch (err) {
       console.error(err);
-      setCitasPendientes([]);
+      if (!isSilent) setCitasPendientes([]);
     }
   };
 
@@ -55,9 +104,9 @@ const Facturas = () => {
     try {
       const response = await api.getFactura(factura._id || factura.id);
       const facturaCompleta = response;
-      
+
       let pacienteData = facturaCompleta.paciente || facturaCompleta.datosCliente;
-      
+
       if (typeof pacienteData === 'string') {
         try {
           const pacienteResponse = await api.getPaciente(pacienteData);
@@ -91,8 +140,12 @@ const Facturas = () => {
   };
 
   const crearFactura = async () => {
+    if (!turnoActivo) {
+      alert("Debe ABRIR EL TURNO DE CAJA antes de facturar.");
+      return;
+    }
     if (!citaSeleccionada) return;
-    
+
     try {
       const items = citaSeleccionada.estudios?.map(e => ({
         descripcion: e.estudio?.nombre || 'Estudio',
@@ -132,9 +185,15 @@ const Facturas = () => {
   };
 
   const calcularTotalHoy = () => {
-    const hoy = new Date().toDateString();
+    if (!turnoActivo) return 0;
+    // Filtrar facturas generadas a partir de la fecha de inicio del turno actual
+    const inicioTurno = new Date(turnoActivo.fechaInicio).getTime();
     return facturas
-      .filter(f => new Date(f.fecha_factura || f.createdAt).toDateString() === hoy && f.estado !== 'anulada')
+      .filter(f => {
+        if (f.estado === 'anulada') return false;
+        const fTime = new Date(f.fecha_factura || f.createdAt).getTime();
+        return fTime >= inicioTurno;
+      })
       .reduce((sum, f) => sum + (f.total || 0), 0);
   };
 
@@ -143,9 +202,9 @@ const Facturas = () => {
     return facturas
       .filter(f => {
         const fecha = new Date(f.fecha_factura || f.createdAt);
-        return fecha.getMonth() === ahora.getMonth() && 
-               fecha.getFullYear() === ahora.getFullYear() && 
-               f.estado !== 'anulada';
+        return fecha.getMonth() === ahora.getMonth() &&
+          fecha.getFullYear() === ahora.getFullYear() &&
+          f.estado !== 'anulada';
       })
       .reduce((sum, f) => sum + (f.total || 0), 0);
   };
@@ -194,17 +253,28 @@ const Facturas = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 25 }}>
-        <div style={{ background: 'linear-gradient(135deg, #27ae60, #2ecc71)', padding: 20, borderRadius: 10, color: 'white' }}>
-          <div style={{ fontSize: 14, opacity: 0.9 }}>Facturado Hoy</div>
-          <div style={{ fontSize: 28, fontWeight: 'bold' }}>RD$ {calcularTotalHoy().toLocaleString()}</div>
-        </div>
+
+        {turnoActivo ? (
+          <div style={{ background: 'linear-gradient(135deg, #27ae60, #2ecc71)', padding: 20, borderRadius: 10, color: 'white', position: 'relative' }}>
+            <div style={{ fontSize: 14, opacity: 0.9 }}>Caja Abierta Hoy ({new Date(turnoActivo.fechaInicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</div>
+            <div style={{ fontSize: 24, fontWeight: 'bold' }}>RD$ {calcularTotalHoy().toLocaleString()}</div>
+            <button onClick={cerrarTurnoManual} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.2)', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>Cerrar Caja</button>
+          </div>
+        ) : (
+          <div style={{ background: 'linear-gradient(135deg, #e74c3c, #c0392b)', padding: 20, borderRadius: 10, color: 'white', position: 'relative' }}>
+            <div style={{ fontSize: 14, opacity: 0.9 }}>Caja CERRADA</div>
+            <div style={{ fontSize: 24, fontWeight: 'bold' }}>-</div>
+            <button onClick={abrirTurnoManual} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>Abrir Caja</button>
+          </div>
+        )}
+
         <div style={{ background: 'linear-gradient(135deg, #3498db, #2980b9)', padding: 20, borderRadius: 10, color: 'white' }}>
-          <div style={{ fontSize: 14, opacity: 0.9 }}>Facturado Este Mes</div>
-          <div style={{ fontSize: 28, fontWeight: 'bold' }}>RD$ {calcularTotalMes().toLocaleString()}</div>
+          <div style={{ fontSize: 14, opacity: 0.9 }}>Facturado Este Mes (Tu Usuario)</div>
+          <div style={{ fontSize: 24, fontWeight: 'bold' }}>RD$ {calcularTotalMes().toLocaleString()}</div>
         </div>
         <div style={{ background: 'linear-gradient(135deg, #9b59b6, #8e44ad)', padding: 20, borderRadius: 10, color: 'white' }}>
-          <div style={{ fontSize: 14, opacity: 0.9 }}>Total Facturas</div>
-          <div style={{ fontSize: 28, fontWeight: 'bold' }}>{facturas.length}</div>
+          <div style={{ fontSize: 14, opacity: 0.9 }}>Total Facturas Históricas</div>
+          <div style={{ fontSize: 24, fontWeight: 'bold' }}>{facturas.length}</div>
         </div>
       </div>
 
@@ -348,11 +418,11 @@ const Facturas = () => {
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button 
+              <button
                 onClick={() => {
                   setFacturaDetalle(null);
                   imprimirFactura(facturaDetalle);
-                }} 
+                }}
                 style={{ flex: 1, padding: 12, background: '#27ae60', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 <FaPrint /> Imprimir
@@ -372,9 +442,9 @@ const Facturas = () => {
         }}>
           <div style={{ background: 'white', padding: 30, borderRadius: 15, width: '100%', maxWidth: 600, maxHeight: '90vh', overflow: 'auto' }}>
             <h2 style={{ marginTop: 0 }}>Nueva Factura</h2>
-            
+
             <p>Seleccione una cita para facturar:</p>
-            
+
             {citasPendientes.length === 0 ? (
               <p style={{ color: '#999', textAlign: 'center', padding: 20 }}>No hay citas pendientes de facturar</p>
             ) : (

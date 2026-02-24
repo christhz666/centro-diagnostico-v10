@@ -1,0 +1,5 @@
+        Info Looking up installed tauri packages to check mismatched versions...
+Found version mismatched Tauri packages. Make sure the NPM package and Rust crate versions are on the same major/minor releases:
+tauri-plugin-autostart (v2.5.1) : @tauri-apps/plugin-autostart (v2.0.0)
+       Error Found version mismatched Tauri packages. Make sure the NPM package and Rust crate versions are on the same major/minor releases:
+tauri-plugin-autostart (v2.5.1) : @tauri-apps/plugin-autostart (v2.0.0)

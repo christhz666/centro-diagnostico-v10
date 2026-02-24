@@ -219,3 +219,20 @@ exports.getMedicos = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Obtener usuarios para Sync Offline (solo activos, sin passwords)
+// @route   GET /api/admin/usuarios/offline-sync
+exports.getUsuariosParaSyncOffline = async (req, res, next) => {
+    try {
+        const usuarios = await User.find({ activo: true })
+            .select('nombre apellido cedula username hash_offline role sucursal');
+
+        res.json({
+            success: true,
+            count: usuarios.length,
+            data: usuarios
+        });
+    } catch (error) {
+        next(error);
+    }
+};

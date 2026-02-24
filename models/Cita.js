@@ -8,6 +8,11 @@ const contadorRegistroSchema = new mongoose.Schema({
 const ContadorRegistro = mongoose.models.ContadorRegistro || mongoose.model('ContadorRegistro', contadorRegistroSchema);
 
 const citaSchema = new mongoose.Schema({
+    sucursal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sucursal',
+        required: false
+    },
     // Relaciones
     paciente: {
         type: mongoose.Schema.Types.ObjectId,
@@ -30,7 +35,7 @@ const citaSchema = new mongoose.Schema({
             default: 0
         }
     }],
-    
+
     // Fecha y hora
     fecha: {
         type: Date,
@@ -43,13 +48,13 @@ const citaSchema = new mongoose.Schema({
     horaFin: {
         type: String
     },
-    
+
     // Estado
     estado: {
         type: String,
         enum: [
             'programada',
-            'confirmada', 
+            'confirmada',
             'en_sala',
             'en_proceso',
             'completada',
@@ -58,7 +63,7 @@ const citaSchema = new mongoose.Schema({
         ],
         default: 'programada'
     },
-    
+
     // Financiero
     subtotal: {
         type: Number,
@@ -85,14 +90,14 @@ const citaSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    
+
     // Seguro
     seguroAplicado: {
         nombre: String,
         cobertura: Number,
         autorizacion: String
     },
-    
+
     // Notas
     motivo: {
         type: String,
@@ -106,12 +111,12 @@ const citaSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    
+
     // Orden médica
     ordenMedica: {
         type: String // URL del archivo
     },
-    
+
     // Control
     creadoPor: {
         type: mongoose.Schema.Types.ObjectId,
@@ -126,7 +131,7 @@ const citaSchema = new mongoose.Schema({
         ref: 'User'
     },
     motivoCancelacion: String,
-    
+
     // Prioridad
     urgente: {
         type: Boolean,
@@ -149,7 +154,7 @@ const citaSchema = new mongoose.Schema({
 });
 
 // Calcular total antes de guardar
-citaSchema.pre('save', function(next) {
+citaSchema.pre('save', function (next) {
     if (this.estudios && this.estudios.length > 0) {
         this.subtotal = this.estudios.reduce((sum, item) => {
             return sum + (item.precio || 0) - (item.descuento || 0);
@@ -159,10 +164,11 @@ citaSchema.pre('save', function(next) {
     next();
 });
 
-citaSchema.pre('validate', async function(next) {
+citaSchema.pre('validate', async function (next) {
     if (!this.registroId) {
+        const contadorId = this.sucursal ? `registro_orden_${this.sucursal}` : 'registro_orden';
         const contador = await ContadorRegistro.findByIdAndUpdate(
-            'registro_orden',
+            contadorId,
             { $inc: { seq: 1 } },
             { new: true, upsert: true }
         );
@@ -181,7 +187,7 @@ citaSchema.index({ paciente: 1, fecha: 1 });
 citaSchema.index({ medico: 1, fecha: 1 });
 citaSchema.index({ estado: 1 });
 citaSchema.index({ fecha: 1 });
-citaSchema.index({ registroId: 1 });
-citaSchema.index({ codigoBarras: 1 });
+citaSchema.index({ registroId: 1, sucursal: 1 }, { unique: true });
+citaSchema.index({ codigoBarras: 1, sucursal: 1 }, { unique: true });
 
 module.exports = mongoose.model('Cita', citaSchema);

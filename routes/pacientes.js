@@ -5,9 +5,11 @@ const {
     createPaciente, updatePaciente, deletePaciente, getHistorial
 } = require('../controllers/pacienteController');
 const { protect, authorize } = require('../middleware/auth');
+const { requireSucursal } = require('../middleware/sucursal');
 const { pacienteValidation, idValidation } = require('../middleware/validators');
 
 router.use(protect); // Todas las rutas requieren autenticación
+router.use(requireSucursal); // Todas las rutas requieren sucursal
 
 router.route('/')
     .get(getPacientes)

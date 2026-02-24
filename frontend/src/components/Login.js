@@ -94,6 +94,14 @@ const Login = ({ onLogin }) => {
                     localStorage.removeItem('savedPassword');
                 }
 
+                // Disparar en background la apertura del turno de caja del dia
+                try {
+                    await api.request('/caja/abrir', { method: 'POST' });
+                    console.log('Turno de caja diario verificado/iniciado');
+                } catch (cajaErr) {
+                    console.log('Caja lista o usuario no aplica:', cajaErr);
+                }
+
                 onLogin(data.usuario, data.access_token);
             } else {
                 setError('Usuario o contraseña incorrectos');

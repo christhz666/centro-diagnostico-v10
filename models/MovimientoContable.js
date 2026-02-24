@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const movimientoContableSchema = new mongoose.Schema({
+    sucursal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sucursal',
+        required: false
+    },
     tipo: {
         type: String,
         enum: ['ingreso', 'egreso'],

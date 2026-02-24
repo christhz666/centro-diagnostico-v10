@@ -22,19 +22,27 @@ const Resultados = () => {
   useEffect(() => {
     fetchResultados();
     fetchCitasPendientes();
+
+    // Auto-Sincronización Total en Segundo Plano (Cada 20 segundos)
+    const interval = setInterval(() => {
+      fetchResultados(true);
+      fetchCitasPendientes(true);
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, [filtroEstado]);
 
-  const fetchResultados = async () => {
+  const fetchResultados = async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const params = filtroEstado ? { estado: filtroEstado } : {};
       const response = await api.getResultados(params);
       setResultados(Array.isArray(response) ? response : (response.data || []));
     } catch (err) {
       console.error(err);
-      setResultados([]);
+      if (!isSilent) setResultados([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 

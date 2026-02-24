@@ -14,26 +14,9 @@ const DescargarApp = () => {
   };
 
   useEffect(() => {
-    fetchDownloadInfo();
+    // Ya no requerimos fetch remoto, las plataformas son estáticas en esta versión.
+    setLoading(false);
   }, []);
-
-  const fetchDownloadInfo = async () => {
-    try {
-      const response = await fetch('/api/downloads/info');
-      const data = await response.json();
-
-      if (data.success) {
-        setDownloadInfo(data);
-      } else {
-        setError('No se pudo obtener información de descargas');
-      }
-    } catch (err) {
-      console.error('Error fetching download info:', err);
-      setError('Error al conectar con el servidor');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getPlatformIcon = (platform) => {
     switch (platform) {
@@ -62,7 +45,11 @@ const DescargarApp = () => {
   };
 
   const handleDownload = (platform) => {
-    window.location.href = `/api/downloads/${platform}`;
+    if (platform === 'web') {
+      window.location.href = '/';
+    } else {
+      window.location.href = `/api/downloads/${platform}`;
+    }
   };
 
   const features = [
@@ -153,25 +140,6 @@ const DescargarApp = () => {
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
             <p>Cargando información de descargas...</p>
           </div>
-        ) : error ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#dc3545' }}>
-            <p>{error}</p>
-          </div>
-        ) : downloadInfo && downloadInfo.platforms.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px',
-            backgroundColor: '#f8d7da',
-            borderRadius: '10px',
-            color: '#721c24',
-            border: '1px solid #f5c6cb'
-          }}>
-            <h3>No hay instaladores disponibles</h3>
-            <p>Los archivos de instalación aún no han sido cargados al servidor.</p>
-            <p style={{ fontSize: '14px', marginTop: '15px' }}>
-              Contacte al administrador del sistema para más información.
-            </p>
-          </div>
         ) : (
           <div style={{
             display: 'grid',
@@ -179,70 +147,44 @@ const DescargarApp = () => {
             gap: '20px',
             marginTop: '30px'
           }}>
-            {['windows', 'mac', 'linux'].map((platform) => {
-              const platformData = downloadInfo.platforms.find(p => p.platform === platform);
-              const available = !!platformData;
+            {/* 1. Versión Web */}
+            <div style={{ border: `2px solid ${colores.primary}`, borderRadius: '10px', padding: '25px', textAlign: 'center', backgroundColor: 'white' }}>
+              <div style={{ fontSize: '60px', color: colores.primary, marginBottom: '15px' }}>🌐</div>
+              <h3 style={{ margin: '0 0 10px 0', color: colores.primary }}>Plataforma Web</h3>
+              <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>Acceso universal desde el navegador.</p>
+              <button
+                onClick={() => handleDownload('web')}
+                style={{ padding: '12px 24px', backgroundColor: colores.primary, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', width: '100%', transition: 'background-color 0.3s' }}
+              >
+                Abrir Web App
+              </button>
+            </div>
 
-              return (
-                <div
-                  key={platform}
-                  style={{
-                    border: `2px solid ${available ? colores.primary : '#ddd'}`,
-                    borderRadius: '10px',
-                    padding: '25px',
-                    textAlign: 'center',
-                    backgroundColor: available ? 'white' : '#f8f8f8',
-                    opacity: available ? 1 : 0.6,
-                    transition: 'all 0.3s'
-                  }}
-                >
-                  <div style={{
-                    fontSize: '60px',
-                    color: available ? colores.primary : '#999',
-                    marginBottom: '15px'
-                  }}>
-                    {getPlatformIcon(platform)}
-                  </div>
-                  <h3 style={{ margin: '0 0 10px 0', color: colores.primary }}>
-                    {getPlatformName(platform)}
-                  </h3>
-                  {available ? (
-                    <>
-                      <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
-                        Tamaño: {platformData.sizeFormatted}
-                      </p>
-                      <button
-                        onClick={() => handleDownload(platform)}
-                        style={{
-                          padding: '12px 24px',
-                          backgroundColor: colores.primary,
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          fontSize: '16px',
-                          fontWeight: 'bold',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          width: '100%',
-                          justifyContent: 'center',
-                          transition: 'background-color 0.3s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colores.secondary}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colores.primary}
-                      >
-                        <FaDownload /> Descargar
-                      </button>
-                    </>
-                  ) : (
-                    <p style={{ color: '#999', fontSize: '14px', margin: '15px 0 0 0' }}>
-                      No disponible
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+            {/* 2. App Windows (Online) */}
+            <div style={{ border: `2px solid ${colores.primary}`, borderRadius: '10px', padding: '25px', textAlign: 'center', backgroundColor: 'white' }}>
+              <div style={{ fontSize: '60px', color: colores.primary, marginBottom: '15px' }}><FaWindows /></div>
+              <h3 style={{ margin: '0 0 10px 0', color: colores.primary }}>App Escritorio (Online)</h3>
+              <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>Requiere internet. Rapidez nativa.</p>
+              <button
+                onClick={() => handleDownload('windows-online')}
+                style={{ padding: '12px 24px', backgroundColor: colores.primary, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', width: '100%', transition: 'background-color 0.3s' }}
+              >
+                <FaDownload /> Descargar Online
+              </button>
+            </div>
+
+            {/* 3. App Windows (Offline) */}
+            <div style={{ border: `2px solid #28a745`, borderRadius: '10px', padding: '25px', textAlign: 'center', backgroundColor: 'white' }}>
+              <div style={{ fontSize: '60px', color: '#28a745', marginBottom: '15px' }}><FaWindows /></div>
+              <h3 style={{ margin: '0 0 10px 0', color: '#28a745' }}>App Escritorio (Offline)</h3>
+              <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>Trabaja sin internet localmente.</p>
+              <button
+                onClick={() => handleDownload('windows-offline')}
+                style={{ padding: '12px 24px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', width: '100%', transition: 'background-color 0.3s' }}
+              >
+                <FaDownload /> Descargar Offline
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -307,8 +249,8 @@ const DescargarApp = () => {
           🔬 Agentes de Equipos de Laboratorio
         </h2>
         <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px', fontSize: '14px' }}>
-          Instala estos agentes en las PCs que están conectadas a los equipos del laboratorio.
-          Cada agente recolecta los datos y los envía automáticamente al servidor.
+          Instala este agente en las PCs que están conectadas a los equipos del laboratorio.
+          Recolecta datos de máquinas LIS/HL7 y los envía automáticamente al servidor.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
           {/* Agente Laboratorio */}
@@ -341,44 +283,11 @@ const DescargarApp = () => {
               <FaDownload /> Descargar Agente Lab
             </button>
           </div>
-
-          {/* Agente Rayos X */}
-          <div style={{
-            border: '2px solid #e67e22',
-            borderRadius: '12px',
-            padding: '24px',
-            background: 'linear-gradient(135deg, #fff8f0 0%, white 100%)'
-          }}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📷</div>
-            <h3 style={{ margin: '0 0 8px', color: '#e67e22' }}>Agente de Rayos X / DICOM</h3>
-            <p style={{ color: '#666', fontSize: '13px', lineHeight: '1.6', marginBottom: '15px' }}>
-              Para equipos de <strong>Rayos X, CR y DICOM</strong>.
-              Monitorea la carpeta donde el equipo guarda las imágenes y las sube automáticamente al servidor.
-            </p>
-            <ul style={{ fontSize: '12px', color: '#555', paddingLeft: '18px', marginBottom: '15px', lineHeight: '1.8' }}>
-              <li>Soporta .dcm, .jpg, .png, .tiff</li>
-              <li>Vincula por codigoLIS automáticamente</li>
-              <li>Mueve procesados a subcarpeta</li>
-            </ul>
-            <button
-              onClick={() => window.location.href = '/api/downloads/agente-rayosx'}
-              style={{
-                width: '100%', padding: '12px', backgroundColor: '#e67e22',
-                color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', gap: '8px'
-              }}
-            >
-              <FaDownload /> Descargar Agente Rayos X
-            </button>
-          </div>
         </div>
 
         <div style={{ marginTop: '20px', padding: '15px', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9' }}>
           <p style={{ margin: 0, fontSize: '13px', color: '#2e7d32' }}>
-            <strong>📋 Instrucciones:</strong> Descomprime la carpeta en la PC del laboratorio →
-            Edita <code>config.json</code> con la URL de tu servidor →
-            Ejecuta <code>instalar.bat</code> → Prueba con <code>node agente.js --test</code>
+            <strong>📋 Instrucción 1-Clic:</strong> Haz clic en cualquiera de estos botones grises para descargar el Instalador Silencioso. Al abrir el archivo <code>.bat</code> descargado, tu PC instalará, configurará y <strong>ejecutará el agente de fondo para siempre cada vez que enciendas tu computadora</strong>, sin que tengas que abrirlo tú mismo. ¡Todo automatizado!
           </p>
         </div>
       </div>
@@ -425,7 +334,7 @@ const DescargarApp = () => {
           </ol>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

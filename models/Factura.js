@@ -3,8 +3,12 @@ const bcrypt = require('bcryptjs');
 
 const facturaSchema = new mongoose.Schema({
     numero: {
-        type: String,
-        unique: true
+        type: String
+    },
+    sucursal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sucursal',
+        required: false // Temporalmente false para no romper datos viejos en script
     },
     tipo: {
         type: String,
@@ -103,14 +107,13 @@ const facturaSchema = new mongoose.Schema({
 facturaSchema.pre('validate', async function (next) {
     try {
         if (!this.numero) {
-            const count = await mongoose.model('Factura').countDocuments();
-            const now = new Date();
-            const year = now.getFullYear().toString().slice(-2);
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const sequence = (count + 1).toString().padStart(4, '0');
+            let filter = {};
+            if (this.sucursal) filter.sucursal = this.sucursal;
+            const count = await mongoose.model('Factura').countDocuments(filter);
+            const sequence = (count + 1).toString().padStart(6, '0');
 
-            // F-2411-0001
-            this.numero = `F-${year}${month}-${sequence}`;
+            // ID corto y universal para LIS
+            this.numero = `FAC-${sequence}`;
         }
 
         if (!this.codigoBarras) {
@@ -179,7 +182,7 @@ facturaSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.pacientePassword);
 };
 
-facturaSchema.index({ numero: 1 });
+facturaSchema.index({ numero: 1, sucursal: 1 }, { unique: true });
 facturaSchema.index({ paciente: 1 });
 facturaSchema.index({ createdAt: -1 });
 facturaSchema.index({ registroIdNumerico: 1 });

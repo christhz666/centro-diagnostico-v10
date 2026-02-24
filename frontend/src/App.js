@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import Joyride, { STATUS } from 'react-joyride';
 import './App.css';
 
 import {
@@ -44,6 +45,51 @@ function App() {
   const [empresaConfig, setEmpresaConfig] = useState({});
   const hoverTimeout = useRef(null);
 
+  // Estado para el Tutorial Interactivo
+  const [runTour, setRunTour] = useState(false);
+
+  // Pasos del tutorial interactivo
+  const tourSteps = [
+    {
+      target: 'body',
+      placement: 'center',
+      content: '¡Bienvenido al Sistema Médico! Realicemos un rápido recorrido para que conozcas las funciones principales.',
+    },
+    {
+      target: '.tour-step-home',
+      content: 'Este es tu Dashboard. Aquí verás el resumen diario y los ingresos.',
+    },
+    {
+      target: '.tour-step-registro',
+      content: 'Registro Inteligente. Desde aquí crearás nuevas citas y leerás Cédulas rápidamente.',
+    },
+    {
+      target: '.tour-step-facturas',
+      content: 'Módulo de Facturación. Completa los pagos de las citas registradas y ábre tu turno de caja diario.',
+    },
+    {
+      target: '.tour-step-resultados',
+      content: 'Panel de Resultados. Sube y visualiza las analíticas y PDF del laboratorio.',
+    },
+    {
+      target: '.tour-step-imagenologia',
+      content: 'Imagenología y Descargas. Los doctores podrán ver los visores o descargar instalaciones desde aquí.',
+    },
+    {
+      target: '.sidebar-colapsador',
+      content: 'Usa este botón para expandir o contraer el menú en cualquier momento.',
+    }
+  ];
+
+  const handleTourCallback = (data) => {
+    const { status } = data;
+    const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED];
+    if (finishedStatuses.includes(status)) {
+      setRunTour(false);
+      localStorage.setItem('tourCompleted', 'true');
+    }
+  };
+
   const sidebarExpanded = isMobile ? sidebarMobileOpen : sidebarHovered;
 
   useEffect(() => {
@@ -60,7 +106,13 @@ function App() {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (savedToken && savedUser) {
-      try { setToken(savedToken); setUser(JSON.parse(savedUser)); }
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+        if (!localStorage.getItem('tourCompleted')) {
+          setTimeout(() => setRunTour(true), 1500);
+        }
+      }
       catch { localStorage.removeItem('token'); localStorage.removeItem('user'); }
     }
     setLoading(false);
@@ -74,7 +126,15 @@ function App() {
       .catch(() => { });
   }, []);
 
-  const handleLogin = (u, t) => { localStorage.setItem('token', t); localStorage.setItem('user', JSON.stringify(u)); setToken(t); setUser(u); };
+  const handleLogin = (u, t) => {
+    localStorage.setItem('token', t);
+    localStorage.setItem('user', JSON.stringify(u));
+    setToken(t);
+    setUser(u);
+    if (!localStorage.getItem('tourCompleted')) {
+      setTimeout(() => setRunTour(true), 1200);
+    }
+  };
   const handleLogout = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setToken(null); };
 
   /* Hover delay (suaviza el colapso) */
@@ -120,6 +180,7 @@ function App() {
     { path: '/medico', icon: <FaUserMd />, label: 'Portal Médico', roles: ['admin', 'medico'] },
     { path: '/resultados', icon: <FaFlask />, label: 'Resultados', roles: ['admin', 'medico', 'laboratorio'] },
     { path: '/imagenologia', icon: <FaXRay />, label: 'Imagenología', roles: ['admin', 'medico', 'laboratorio', 'recepcion'] },
+    { path: '/descargar-app', icon: <FaDownload />, label: 'Descargar Plataformas', roles: ['admin', 'medico', 'recepcion', 'laboratorio'] }
   ];
 
   const adminSubItems = [
@@ -129,9 +190,7 @@ function App() {
     { path: '/admin/estudios', icon: <FaClipboardList />, label: 'Catálogo Estudios', roles: ['admin'] },
     { path: '/contabilidad', icon: <FaBalanceScale />, label: 'Contabilidad', roles: ['admin'] },
     { path: '/campana-whatsapp', icon: <FaWhatsapp />, label: 'Campañas WhatsApp', roles: ['admin'] },
-    isElectron
-      ? { path: '/deploy', icon: <FaNetworkWired />, label: 'Deploy Agentes', roles: ['admin'] }
-      : { path: '/descargar-app', icon: <FaDownload />, label: 'Descargar App', roles: ['admin', 'medico', 'recepcion', 'laboratorio'] }
+    ...(isElectron ? [{ path: '/deploy', icon: <FaNetworkWired />, label: 'Deploy Agentes', roles: ['admin'] }] : [])
   ];
 
   const filteredMenu = menuItems.filter(i => i.roles.includes(rol));
@@ -173,6 +232,22 @@ function App() {
     <OfflineScreen>
       <Router>
         <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Inter','Segoe UI',Arial,sans-serif" }}>
+
+          <Joyride
+            steps={tourSteps}
+            run={runTour}
+            continuous={true}
+            showProgress={true}
+            showSkipButton={true}
+            callback={handleTourCallback}
+            styles={{
+              options: {
+                primaryColor: '#0f4c75',
+                zIndex: 10000,
+              }
+            }}
+            locale={{ last: 'Finalizar', next: 'Siguiente', skip: 'Saltar Tour', back: 'Atrás' }}
+          />
 
           <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -232,6 +307,7 @@ function App() {
             <nav style={{ flex: 1, padding: '8px 0' }}>
               {filteredMenu.map((item, i) => (
                 <NavLink key={i} to={item.path} end={item.path === '/'} style={navLinkStyle}
+                  className={`tour-step-${item.path.replace(/\//g, '') || 'home'}`}
                   onClick={() => { if (isMobile) setSidebarMobileOpen(false); }}
                 >
                   <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
@@ -324,6 +400,7 @@ function App() {
             }}>
               {/* Botón menú (móvil o siempre visible) */}
               <button
+                className="sidebar-colapsador"
                 onClick={() => isMobile ? setSidebarMobileOpen(!sidebarMobileOpen) : setSidebarHovered(!sidebarHovered)}
                 style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#1b262c', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center' }}
               >

@@ -63,6 +63,54 @@ router.post('/procesar-cola', async (req, res) => {
   }
 });
 
+// GET - Generar Modality Worklist (MWL) para Agente DICOM
+router.get('/worklist/:tipo', async (req, res) => {
+  try {
+    const Cita = require('../models/Cita');
+    const Estudio = require('../models/Estudio');
+    const tipo = req.params.tipo; // e.g., 'dicom'
+
+    // Buscar estudios que clasifiquen como Rayos X / Imagenología
+    const estudiosRX = await Estudio.find({
+      categoria: { $in: ['Imagenología', 'Rayos X', 'CR', 'Sonografía'] }
+    }).select('_id');
+    const estudiosIds = estudiosRX.map(e => e._id);
+
+    // Obtener fecha de hoy (inicio y fin)
+    const inicioHoy = new Date();
+    inicioHoy.setHours(0, 0, 0, 0);
+    const finHoy = new Date();
+    finHoy.setHours(23, 59, 59, 999);
+
+    // Buscar citas confirmadas de hoy que contengan esos estudios
+    const citas = await Cita.find({
+      fecha: { $gte: inicioHoy, $lte: finHoy },
+      estado: { $in: ['confirmada', 'en_proceso'] },
+      'estudios.estudio': { $in: estudiosIds }
+    }).populate('paciente')
+      .populate('estudios.estudio');
+
+    const worklist = citas.map(cita => {
+      // Tomamos el primer estudio de RX aplicable
+      const estudioDicom = cita.estudios.find(e => estudiosIds.some(id => id.equals(e.estudio._id)));
+
+      return {
+        PatientID: cita.paciente.cedula || cita.paciente._id.toString(),
+        PatientName: `${cita.paciente.nombre}^${cita.paciente.apellido}`.toUpperCase().replace(/\s+/g, '^'),
+        AccessionNumber: cita._id.toString().slice(-8).toUpperCase(),
+        StudyInstanceUID: '', // Se genera temporalmente en el agente si viene vacío
+        RequestedProcedureID: estudioDicom ? estudioDicom.estudio.codigo : '',
+        ScheduledProcedureStepStartDate: cita.fecha.toISOString().slice(0, 10).replace(/-/g, '')
+      };
+    });
+
+    res.json({ success: true, data: worklist });
+  } catch (err) {
+    console.error('Error generando Worklist:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST - Recibir imagen desde agente de rayos X
 router.post('/recibir-imagen', async (req, res) => {
   const multer = require('multer');

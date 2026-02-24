@@ -9,13 +9,18 @@ const contadorSchema = new mongoose.Schema({
 const Contador = mongoose.model('Contador', contadorSchema);
 
 const resultadoSchema = new mongoose.Schema({
+    sucursal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sucursal',
+        required: false
+    },
     // Código único para identificación de muestra
     codigoMuestra: {
         type: String,
         unique: true,
         sparse: true
     },
-    
+
     // Relaciones
     cita: {
         type: mongoose.Schema.Types.ObjectId,
@@ -40,14 +45,14 @@ const resultadoSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
-    
+
     // Resultado
     estado: {
         type: String,
         enum: ['pendiente', 'en_proceso', 'completado', 'entregado', 'anulado'],
         default: 'pendiente'
     },
-    
+
     // Valores del resultado
     valores: [{
         parametro: String,
@@ -60,7 +65,7 @@ const resultadoSchema = new mongoose.Schema({
             default: ''
         }
     }],
-    
+
     // Interpretación
     interpretacion: {
         type: String,
@@ -74,7 +79,7 @@ const resultadoSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    
+
     // Archivos adjuntos (imágenes, PDFs)
     archivos: [{
         nombre: String,
@@ -114,7 +119,7 @@ const resultadoSchema = new mongoose.Schema({
             orthancStudyId: String
         }
     },
-    
+
     // Control
     realizadoPor: {
         type: mongoose.Schema.Types.ObjectId,
@@ -127,7 +132,7 @@ const resultadoSchema = new mongoose.Schema({
     fechaRealizacion: Date,
     fechaValidacion: Date,
     fechaEntrega: Date,
-    
+
     // Para impresión
     impreso: {
         type: Boolean,
@@ -144,12 +149,12 @@ const resultadoSchema = new mongoose.Schema({
 // Helper function para determinar si es estudio de laboratorio
 function esEstudioLaboratorio(estudio) {
     if (!estudio) return false;
-    
+
     // Si el código empieza con LAB
     if (estudio.codigo && estudio.codigo.toUpperCase().startsWith('LAB')) {
         return true;
     }
-    
+
     // Categorías de laboratorio
     const categoriasLab = [
         'hematologia',
@@ -160,45 +165,46 @@ function esEstudioLaboratorio(estudio) {
         'microbiologia',
         'laboratorio clinico'
     ];
-    
+
     if (estudio.categoria) {
         const catLower = estudio.categoria.toLowerCase();
         return categoriasLab.some(c => catLower.includes(c));
     }
-    
+
     return false;
 }
 
 // Auto-generar código de muestra simple con secuencia global
 // Laboratorio: L0001, L0002, etc.
 // Otras áreas: 0001, 0002, etc.
-resultadoSchema.pre('validate', async function(next) {
+resultadoSchema.pre('validate', async function (next) {
     if (!this.codigoMuestra) {
         try {
             // Poblar el estudio si no está poblado
             if (!this.populated('estudio') && this.estudio) {
                 await this.populate('estudio');
             }
-            
+
             // Obtener el siguiente número de la secuencia global
+            const contadorId = this.sucursal ? `resultado_id_${this.sucursal}` : 'resultado_id';
             const contador = await Contador.findByIdAndUpdate(
-                'resultado_id',
+                contadorId,
                 { $inc: { seq: 1 } },
                 { new: true, upsert: true }
             );
-            
+
             const numeroSecuencia = contador.seq;
-            
+
             // Determinar si es laboratorio
             const esLab = esEstudioLaboratorio(this.estudio);
-            
+
             // Generar código simple
             if (esLab) {
                 this.codigoMuestra = `L${numeroSecuencia}`;
             } else {
                 this.codigoMuestra = `${numeroSecuencia}`;
             }
-            
+
         } catch (error) {
             // En caso de error, usar timestamp para garantizar unicidad
             const timestamp = Date.now();
@@ -212,7 +218,7 @@ resultadoSchema.pre('validate', async function(next) {
 resultadoSchema.index({ paciente: 1, createdAt: -1 });
 resultadoSchema.index({ cita: 1 });
 resultadoSchema.index({ estado: 1 });
-resultadoSchema.index({ codigoMuestra: 1 });
+resultadoSchema.index({ codigoMuestra: 1, sucursal: 1 }, { unique: true });
 
 const Resultado = mongoose.model('Resultado', resultadoSchema);
 

@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const pacienteSchema = new mongoose.Schema({
+    sucursal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sucursal',
+        required: false
+    },
     // Datos personales
     nombre: {
         type: String,
@@ -37,7 +42,7 @@ const pacienteSchema = new mongoose.Schema({
         enum: ['Dominicano', 'Haitiano', 'Otro', ''],
         default: 'Dominicano'
     },
-    
+
     // Contacto
     telefono: {
         type: String,
@@ -59,7 +64,7 @@ const pacienteSchema = new mongoose.Schema({
         ciudad: String,
         provincia: String
     },
-    
+
     // Datos médicos
     tipoSangre: {
         type: String,
@@ -78,7 +83,7 @@ const pacienteSchema = new mongoose.Schema({
         nombre: String,
         dosis: String
     }],
-    
+
     // Seguro médico
     seguro: {
         nombre: String,
@@ -90,14 +95,14 @@ const pacienteSchema = new mongoose.Schema({
             default: ''
         }
     },
-    
+
     // Contacto de emergencia
     contactoEmergencia: {
         nombre: String,
         telefono: String,
         relacion: String
     },
-    
+
     // Control
     activo: {
         type: Boolean,
@@ -118,7 +123,7 @@ const pacienteSchema = new mongoose.Schema({
 });
 
 
-pacienteSchema.pre('validate', function(next) {
+pacienteSchema.pre('validate', function (next) {
     if (this.esMenor && !this.cedula) {
         this.cedula = `MENOR-${Date.now()}`;
     }
@@ -126,12 +131,12 @@ pacienteSchema.pre('validate', function(next) {
 });
 
 // Virtual: nombre completo
-pacienteSchema.virtual('nombreCompleto').get(function() {
+pacienteSchema.virtual('nombreCompleto').get(function () {
     return `${this.nombre} ${this.apellido}`;
 });
 
 // Virtual: edad
-pacienteSchema.virtual('edad').get(function() {
+pacienteSchema.virtual('edad').get(function () {
     if (!this.fechaNacimiento) return null;
     const hoy = new Date();
     const nacimiento = new Date(this.fechaNacimiento);

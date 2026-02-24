@@ -138,13 +138,17 @@ app.use('/api/facturas', require('./routes/facturas'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/reportes', require('./routes/dashboard'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/sucursales', require('./routes/sucursales'));
+app.use('/api/caja', require('./routes/turnosCaja'));
 app.use('/api/equipos', require('./routes/equipoRoutes'));
+app.use('/api/barcodes', require('./routes/poolBarcodes'));
 app.use('/api/contabilidad', require('./routes/contabilidad'));
 app.use('/api/configuracion', require('./routes/configuracion'));
 app.use('/api/deploy', require('./routes/deploy'));
 app.use('/api/downloads', require('./routes/downloads')); // No requiere autenticación
 app.use('/api/whatsapp', require('./routes/whatsapp'));
 app.use('/api/imagenologia', require('./routes/imagenologia'));
+app.use('/api/orthanc', require('./routes/orthanc')); // Proxy DICOM
 app.use("/verificar", require("./routes/verificar"));
 
 // Visor de imágenes médicas (acceso directo por URL)
@@ -209,6 +213,15 @@ const startServer = async () => {
                 .then(() => console.log('✅ Servicio de equipos iniciado'))
                 .catch(err => console.error('⚠️ Error iniciando equipos:', err.message));
         }, 3000);
+
+        // Iniciar polling de Orthanc para sincronizar imágenes DICOM
+        const orthancService = require('./services/orthancService');
+        setTimeout(() => {
+            console.log('🔄 Iniciando sincronización en background con Servidor Orthanc...');
+            setInterval(() => {
+                orthancService.sincronizarImagenesListas().catch(e => console.error(e));
+            }, 30000); // Polling cada 30 segundos
+        }, 5000);
 
         // Graceful shutdown
         const shutdown = (signal) => {

@@ -184,6 +184,27 @@ exports.getWorkspace = async (req, res, next) => {
             fecha_reporte: reporte.fecha_reporte || null
         };
 
+        let orthancImagenes = [];
+        if (resultado.orthancStudyId) {
+            const orthancService = require('../services/orthancService');
+            const instances = await orthancService.getStudyInstances(resultado.orthancStudyId);
+            orthancImagenes = instances.map((inst, index) => ({
+                id: inst.ID,
+                nombre: `Radiografía ${index + 1} (DICOM)`,
+                url: `/api/orthanc/visor/${inst.ID}`,
+                tipo: 'dicom/jpeg',
+                tamaño: inst.FileSize || 0
+            }));
+        }
+
+        const archivosLocales = (resultado.archivos || []).map(a => ({
+            id: a._id,
+            nombre: a.nombre,
+            url: a.url,
+            tipo: a.tipo,
+            tamaño: a.tamaño
+        }));
+
         res.json({
             success: true,
             data: {
@@ -195,13 +216,7 @@ exports.getWorkspace = async (req, res, next) => {
                 cita: resultado.cita,
                 medico: resultado.medico,
                 visor: {
-                    imagenes: (resultado.archivos || []).map(a => ({
-                        id: a._id,
-                        nombre: a.nombre,
-                        url: a.url,
-                        tipo: a.tipo,
-                        tamaño: a.tamaño
-                    })),
+                    imagenes: [...archivosLocales, ...orthancImagenes],
                     ajustes: img.ajustesVisor || {
                         brillo: 0,
                         contraste: 0,
@@ -440,8 +455,8 @@ exports.generarWorklistDICOM = async (req, res, next) => {
             if (!e) return false;
             const txt = `${e.nombre || ''} ${e.categoria || ''} ${e.codigo || ''}`.toLowerCase();
             return txt.includes('rayo') || txt.includes('radiograf') ||
-                   txt.includes('rx') || txt.includes('imagen') ||
-                   txt.includes('tomog') || txt.includes('mamog');
+                txt.includes('rx') || txt.includes('imagen') ||
+                txt.includes('tomog') || txt.includes('mamog');
         });
 
         if (!estudiosImg.length) {
@@ -465,13 +480,15 @@ exports.generarWorklistDICOM = async (req, res, next) => {
             '00100030': { vr: 'DA', Value: [fechaNac] },
             '00100040': { vr: 'CS', Value: [pac?.sexo === 'M' ? 'M' : 'F'] },
             '00080050': { vr: 'SH', Value: [accessionNumber] },
-            '00400275': { vr: 'SQ', Value: [{ // Scheduled Procedure Step Sequence
-                '00400007': { vr: 'LO', Value: [estudiosImg.map(e => e.estudio?.nombre).join(' | ')] },
-                '00400001': { vr: 'AE', Value: ['RAYOSX'] },
-                '00400002': { vr: 'DA', Value: [fechaEstudio] },
-                '00400003': { vr: 'TM', Value: [horaEstudio] },
-                '00080060': { vr: 'CS', Value: ['CR'] } // Computed Radiography
-            }] }
+            '00400275': {
+                vr: 'SQ', Value: [{ // Scheduled Procedure Step Sequence
+                    '00400007': { vr: 'LO', Value: [estudiosImg.map(e => e.estudio?.nombre).join(' | ')] },
+                    '00400001': { vr: 'AE', Value: ['RAYOSX'] },
+                    '00400002': { vr: 'DA', Value: [fechaEstudio] },
+                    '00400003': { vr: 'TM', Value: [horaEstudio] },
+                    '00080060': { vr: 'CS', Value: ['CR'] } // Computed Radiography
+                }]
+            }
         };
 
         // ── Payload HL7 ORM (Order Message) ──
