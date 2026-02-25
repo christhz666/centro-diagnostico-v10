@@ -128,8 +128,8 @@ const AdminSucursales = () => {
                                 <input required type="text" name="nombre" value={sucursalForm.nombre} onChange={handleChange} style={{ width: '100%', padding: 10, borderRadius: 5, border: '1px solid #ccc' }} />
                             </div>
                             <div style={{ marginBottom: 15 }}>
-                                <label style={{ display: 'block', marginBottom: 5 }}>Código LIS/Corto (Ej. "PIA")</label>
-                                <input type="text" name="codigo" value={sucursalForm.codigo} onChange={handleChange} style={{ width: '100%', padding: 10, borderRadius: 5, border: '1px solid #ccc' }} />
+                                <label style={{ display: 'block', marginBottom: 5 }}>Código LIS/Corto (Ej. "PIA", "PRINC") *</label>
+                                <input required type="text" name="codigo" value={sucursalForm.codigo} onChange={handleChange} placeholder="Ej. PIA" maxLength={10} style={{ width: '100%', padding: 10, borderRadius: 5, border: '1px solid #ccc' }} />
                             </div>
                             <div style={{ marginBottom: 15 }}>
                                 <label style={{ display: 'block', marginBottom: 5 }}>Dirección Física</label>
