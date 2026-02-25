@@ -59,7 +59,8 @@ exports.login = async (req, res, next) => {
             role: user.role,
             rol: user.role,
             nombreCompleto: user.nombreCompleto,
-            avatar: user.avatar
+            avatar: user.avatar,
+            sucursal: user.sucursal ? user.sucursal.toString() : null
         };
 
         res.json({
@@ -162,7 +163,8 @@ exports.getMe = async (req, res, next) => {
                 nombreCompleto: user.nombreCompleto,
                 avatar: user.avatar,
                 ultimoAcceso: user.ultimoAcceso,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                sucursal: user.sucursal ? user.sucursal.toString() : null
             }
         });
     } catch (error) {
