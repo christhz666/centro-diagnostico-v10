@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUsers, FaPlus, FaEdit, FaToggleOn, FaToggleOff, FaKey, FaSpinner, FaSave, FaTimes } from 'react-icons/fa';
+import { FaUsers, FaPlus, FaEdit, FaToggleOn, FaToggleOff, FaKey, FaSpinner, FaSave, FaTimes, FaBuilding } from 'react-icons/fa';
 import api from '../services/api';
 
 const ROLES_DEFAULT = [
@@ -20,6 +20,7 @@ const ROL_COLORS = {
 
 const AdminUsuarios = () => {
   const [usuarios, setUsuarios] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -27,13 +28,24 @@ const AdminUsuarios = () => {
   const [roles, setRoles] = useState(ROLES_DEFAULT);
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', username: '', password: '',
-    role: 'recepcion', telefono: '', especialidad: ''
+    role: 'recepcion', telefono: '', especialidad: '', sucursal: ''
   });
 
   useEffect(() => {
     fetchUsuarios();
     fetchRoles();
+    fetchSucursales();
   }, []);
+
+  const fetchSucursales = async () => {
+    try {
+      const res = await api.request('/sucursales');
+      const lista = res?.data || res;
+      setSucursales(Array.isArray(lista) ? lista : []);
+    } catch (err) {
+      setSucursales([]);
+    }
+  };
 
   const fetchUsuarios = async () => {
     try {
@@ -60,12 +72,13 @@ const AdminUsuarios = () => {
 
   const abrirCrear = () => {
     setEditando(null);
-    setFormData({ nombre: '', apellido: '', email: '', username: '', password: '', role: 'recepcion', telefono: '', especialidad: '' });
+    setFormData({ nombre: '', apellido: '', email: '', username: '', password: '', role: 'recepcion', telefono: '', especialidad: '', sucursal: '' });
     setShowModal(true);
   };
 
   const abrirEditar = (usuario) => {
     setEditando(usuario);
+    const sucId = usuario.sucursal?._id || usuario.sucursal;
     setFormData({
       nombre: usuario.nombre || '',
       apellido: usuario.apellido || '',
@@ -74,7 +87,8 @@ const AdminUsuarios = () => {
       password: '',
       role: usuario.role || usuario.rol || 'recepcion',
       telefono: usuario.telefono || '',
-      especialidad: usuario.especialidad || ''
+      especialidad: usuario.especialidad || '',
+      sucursal: sucId ? String(sucId) : ''
     });
     setShowModal(true);
   };
@@ -85,9 +99,11 @@ const AdminUsuarios = () => {
       const userData = { ...formData };
       if (editando) {
         if (!userData.password) delete userData.password;
+        if (!userData.sucursal) userData.sucursal = null;
         await api.updateUsuario(editando._id || editando.id, userData);
         alert('Usuario actualizado exitosamente');
       } else {
+        if (!userData.sucursal) delete userData.sucursal;
         await api.createUsuario(userData);
         alert('Usuario creado exitosamente');
       }
@@ -151,13 +167,14 @@ const AdminUsuarios = () => {
               <th style={{ padding: 15, textAlign: 'left', color: '#666', fontWeight: 600 }}>Usuario</th>
               <th style={{ padding: 15, textAlign: 'left', color: '#666', fontWeight: 600 }}>Teléfono</th>
               <th style={{ padding: 15, textAlign: 'left', color: '#666', fontWeight: 600 }}>Rol</th>
+              <th style={{ padding: 15, textAlign: 'left', color: '#666', fontWeight: 600 }}>Sucursal</th>
               <th style={{ padding: 15, textAlign: 'center', color: '#666', fontWeight: 600 }}>Estado</th>
               <th style={{ padding: 15, textAlign: 'center', color: '#666', fontWeight: 600 }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {usuarios.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: 30, textAlign: 'center', color: '#999' }}>No hay usuarios registrados</td></tr>
+              <tr><td colSpan="7" style={{ padding: 30, textAlign: 'center', color: '#999' }}>No hay usuarios registrados</td></tr>
             ) : (
               usuarios.map((u) => {
                 const rol = u.role || u.rol || 'recepcion';
@@ -171,6 +188,7 @@ const AdminUsuarios = () => {
                         {getRolLabel(rol)}
                       </span>
                     </td>
+                    <td style={{ padding: 15, color: '#555' }}>{u.sucursal?.nombre || (u.sucursal ? 'Asignada' : '-')}</td>
                     <td style={{ padding: 15, textAlign: 'center' }}>
                       <span style={{ color: u.activo ? '#27ae60' : '#e74c3c', fontWeight: 'bold' }}>
                         {u.activo ? '✓ Activo' : '✗ Inactivo'}
@@ -217,6 +235,14 @@ const AdminUsuarios = () => {
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} required style={{ ...inputStyle, background: 'white' }}>
                     {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, color: '#666', marginBottom: 5, display: 'block' }}><FaBuilding style={{ marginRight: 6 }} />Sucursal</label>
+                  <select value={formData.sucursal} onChange={e => setFormData({ ...formData, sucursal: e.target.value })} style={{ ...inputStyle, background: 'white' }}>
+                    <option value="">-- Sin sucursal --</option>
+                    {sucursales.map(s => <option key={s._id} value={s._id}>{s.nombre} ({s.codigo || s._id})</option>)}
+                  </select>
+                  <small style={{ color: '#888', fontSize: 11 }}>Recomendado para Recepcionista y Laboratorista</small>
                 </div>
                 {formData.role === 'medico' && (
                   <input placeholder="Especialidad médica" value={formData.especialidad} onChange={e => setFormData({ ...formData, especialidad: e.target.value })} style={inputStyle} />

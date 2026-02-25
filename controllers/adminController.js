@@ -32,6 +32,7 @@ exports.getUsuarios = async (req, res, next) => {
 
         const usuarios = await User.find(filter)
             .select('-password')
+            .populate('sucursal', 'nombre codigo')
             .sort('-createdAt');
 
         res.json({
