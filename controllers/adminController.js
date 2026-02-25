@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 // @desc    Obtener roles disponibles
@@ -83,8 +84,21 @@ exports.createUsuario = async (req, res, next) => {
             (typeof req.body.username === 'string' && req.body.username.trim() === '')) {
             delete req.body.username;
         }
-        if (req.body.sucursal === '' || req.body.sucursal === 'null') {
-            req.body.sucursal = null;
+        // Requerir username o email para poder iniciar sesión
+        if (!req.body.username && !req.body.email) {
+            return res.status(400).json({
+                success: false,
+                message: 'El usuario debe tener nombre de usuario o email para poder iniciar sesión.'
+            });
+        }
+        // Sucursal: omitir si vacío, validar ObjectId si existe
+        if (req.body.sucursal === '' || req.body.sucursal === 'null' || req.body.sucursal === null) {
+            delete req.body.sucursal;
+        } else if (req.body.sucursal && !mongoose.Types.ObjectId.isValid(req.body.sucursal)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID de sucursal inválido.'
+            });
         }
 
         const usuario = await User.create(req.body);
