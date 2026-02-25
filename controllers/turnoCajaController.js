@@ -1,5 +1,15 @@
 const TurnoCaja = require('../models/TurnoCaja');
-const User = require('../models/User');
+const Sucursal = require('../models/Sucursal');
+
+// Helper: obtener sucursalId (header, user, o fallback a única sucursal)
+async function getSucursalId(req) {
+    let id = req.headers['x-sucursal-id'] || (req.user && req.user.sucursal ? req.user.sucursal.toString() : null);
+    if (!id) {
+        const s = await Sucursal.findOne().select('_id').lean();
+        if (s) id = s._id.toString();
+    }
+    return id;
+}
 
 // Función Helper: Si son las 20:30 (8:30 PM), contablemente es el día siguiente a las 05:00
 const getFechaContable = () => {
@@ -20,7 +30,7 @@ const getFechaContable = () => {
 // @access  Privado
 exports.getTurnoActivo = async (req, res, next) => {
     try {
-        const sucursalId = req.headers['x-sucursal-id'] || req.user.sucursal;
+        let sucursalId = await getSucursalId(req);
         if (!sucursalId) {
             // Administradores y Médicos globales no tienen turno de caja por defecto
             return res.status(200).json({ success: true, data: null });
@@ -46,9 +56,9 @@ exports.getTurnoActivo = async (req, res, next) => {
 // @access  Privado
 exports.abrirTurno = async (req, res, next) => {
     try {
-        const sucursalId = req.headers['x-sucursal-id'] || req.user.sucursal;
+        const sucursalId = await getSucursalId(req);
         if (!sucursalId) {
-            return res.status(400).json({ success: false, error: 'Sucursal no definida' });
+            return res.status(400).json({ success: false, error: 'Sucursal no definida. Crea al menos una sucursal en Administración.' });
         }
 
         // Verificar si ya tiene turno abierto
@@ -86,7 +96,7 @@ exports.abrirTurno = async (req, res, next) => {
 // @access  Privado
 exports.cerrarTurno = async (req, res, next) => {
     try {
-        const sucursalId = req.headers['x-sucursal-id'] || req.user.sucursal;
+        const sucursalId = await getSucursalId(req);
 
         const turno = await TurnoCaja.findOne({
             usuario: req.user._id,
@@ -117,7 +127,7 @@ exports.cerrarTurno = async (req, res, next) => {
 // @access  Privado/Admin
 exports.getHistorialTurnos = async (req, res, next) => {
     try {
-        const sucursalId = req.headers['x-sucursal-id'] || req.user.sucursal;
+        const sucursalId = await getSucursalId(req);
         const turnos = await TurnoCaja.find({ sucursal: sucursalId })
             .populate('usuario', 'nombre apellido')
             .sort('-fechaInicio');

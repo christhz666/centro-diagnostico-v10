@@ -1,40 +1,53 @@
 const mongoose = require('mongoose');
-const { AppError } = require('./errorHandler');
+const Sucursal = require('../models/Sucursal');
 
 // Middleware para inyectar sucursalId en la petición
-exports.requireSucursal = (req, res, next) => {
-    // 1. Obtener la sucursal ligada estrictamente al perfil (Los usuarios no se cambian solos)
-    let sucursalId = req.user && req.user.sucursal ? req.user.sucursal.toString() : null;
+exports.requireSucursal = async (req, res, next) => {
+    try {
+        // 1. Obtener la sucursal ligada estrictamente al perfil
+        let sucursalId = req.user && req.user.sucursal ? req.user.sucursal.toString() : null;
 
-    // 2. Solo si el usuario no tiene sucursal rígida, le permitimos enviar el header
-    if (!sucursalId && req.headers['x-sucursal-id']) {
-        sucursalId = req.headers['x-sucursal-id'];
-    }
+        // 2. Solo si el usuario no tiene sucursal, permitir header x-sucursal-id
+        if (!sucursalId && req.headers['x-sucursal-id']) {
+            sucursalId = req.headers['x-sucursal-id'];
+        }
 
-    // 3. Exonerar a Administradores y Médicos de requerir Sucursal estricta
-    if (!sucursalId) {
-        if (req.user && (req.user.role === 'admin' || req.user.role === 'super-admin' || req.user.role === 'medico')) {
+        // 3. Exonerar a Administradores y Médicos
+        if (!sucursalId && req.user && (req.user.role === 'admin' || req.user.role === 'super-admin' || req.user.role === 'medico')) {
             return next();
         }
 
-        return res.status(400).json({
-            success: false,
-            message: 'No tienes una sucursal física asignada en tu perfil de usuario. Contacta al administrador.'
-        });
-    }
+        // 4. Fallback: si no hay sucursal pero existe solo una en el sistema, usarla
+        if (!sucursalId) {
+            const sucursales = await Sucursal.find().limit(2).lean();
+            if (sucursales.length === 1) {
+                sucursalId = sucursales[0]._id.toString();
+            }
+        }
 
-    if (!mongoose.Types.ObjectId.isValid(sucursalId)) {
-        return res.status(400).json({
-            success: false,
-            message: 'ID de Sucursal inválido'
-        });
-    }
+        // 5. Si sigue sin sucursal, rechazar
+        if (!sucursalId) {
+            return res.status(400).json({
+                success: false,
+                message: 'No tienes una sucursal física asignada en tu perfil de usuario. Contacta al administrador.'
+            });
+        }
 
-    // Inyectar en req body y objeto principal para que los controladores lo usen fácilmente
-    req.sucursalId = sucursalId;
-    if (req.method === 'POST' || req.method === 'PUT') {
-        req.body.sucursal = sucursalId;
-    }
+        if (!mongoose.Types.ObjectId.isValid(sucursalId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID de Sucursal inválido'
+            });
+        }
 
-    next();
+        // Inyectar sucursal en req
+        req.sucursalId = sucursalId;
+        if (req.method === 'POST' || req.method === 'PUT') {
+            req.body.sucursal = sucursalId;
+        }
+
+        next();
+    } catch (err) {
+        next(err);
+    }
 };
