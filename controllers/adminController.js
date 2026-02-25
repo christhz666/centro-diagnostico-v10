@@ -69,39 +69,38 @@ exports.getUsuario = async (req, res, next) => {
 // @route   POST /api/admin/usuarios
 exports.createUsuario = async (req, res, next) => {
     try {
-        // Normalizar: el frontend puede enviar 'rol' o 'role'
-        if (req.body.rol && !req.body.role) {
-            req.body.role = req.body.rol;
+        const body = req.body;
+        // Construir objeto solo con campos válidos (evitar email/username "null" o vacíos)
+        const data = {
+            nombre: body.nombre,
+            apellido: body.apellido,
+            password: body.password,
+            role: body.role || body.rol || 'recepcion',
+            telefono: body.telefono || undefined,
+            especialidad: body.especialidad || undefined
+        };
+        // Email: solo incluir si es válido (no vacío, no "null")
+        const emailVal = body.email;
+        if (emailVal && emailVal !== 'null' && typeof emailVal === 'string' && emailVal.trim()) {
+            data.email = emailVal.trim().toLowerCase();
         }
-        delete req.body.rol;
-
-        // Evitar que Mongoose registre strings vacíos o "null" en índices Unique Sparse
-        if (req.body.email === undefined || req.body.email === null || req.body.email === 'null' ||
-            (typeof req.body.email === 'string' && req.body.email.trim() === '')) {
-            delete req.body.email;
+        // Username: solo incluir si es válido
+        const userVal = body.username;
+        if (userVal && userVal !== 'null' && typeof userVal === 'string' && userVal.trim()) {
+            data.username = userVal.trim().toLowerCase();
         }
-        if (req.body.username === undefined || req.body.username === null || req.body.username === 'null' ||
-            (typeof req.body.username === 'string' && req.body.username.trim() === '')) {
-            delete req.body.username;
-        }
-        // Requerir username o email para poder iniciar sesión
-        if (!req.body.username && !req.body.email) {
+        if (!data.username && !data.email) {
             return res.status(400).json({
                 success: false,
                 message: 'El usuario debe tener nombre de usuario o email para poder iniciar sesión.'
             });
         }
-        // Sucursal: omitir si vacío, validar ObjectId si existe
-        if (req.body.sucursal === '' || req.body.sucursal === 'null' || req.body.sucursal === null) {
-            delete req.body.sucursal;
-        } else if (req.body.sucursal && !mongoose.Types.ObjectId.isValid(req.body.sucursal)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de sucursal inválido.'
-            });
+        // Sucursal: solo si es ObjectId válido
+        if (body.sucursal && body.sucursal !== '' && body.sucursal !== 'null' && mongoose.Types.ObjectId.isValid(body.sucursal)) {
+            data.sucursal = body.sucursal;
         }
 
-        const usuario = await User.create(req.body);
+        const usuario = await User.create(data);
 
         res.status(201).json({
             success: true,
