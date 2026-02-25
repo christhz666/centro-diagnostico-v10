@@ -82,7 +82,11 @@ exports.register = async (req, res, next) => {
     try {
         const { nombre, apellido, email, username, password, role, telefono, especialidad, licenciaMedica } = req.body;
 
-        if (!email && !username) {
+        // Sanitizar: no guardar email/username "null" o vacíos (evitar error 11000)
+        const emailVal = (email && email !== 'null' && typeof email === 'string' && email.trim()) ? email.trim().toLowerCase() : null;
+        const usernameVal = (username && username !== 'null' && typeof username === 'string' && username.trim()) ? username.trim().toLowerCase() : null;
+
+        if (!emailVal && !usernameVal) {
             return res.status(400).json({
                 success: false,
                 message: 'Debe proporcionar un email o un nombre de usuario'
@@ -90,8 +94,8 @@ exports.register = async (req, res, next) => {
         }
 
         // Verificar si ya existe
-        if (email) {
-            const existingEmail = await User.findOne({ email });
+        if (emailVal) {
+            const existingEmail = await User.findOne({ email: emailVal });
             if (existingEmail) {
                 return res.status(400).json({
                     success: false,
@@ -100,8 +104,8 @@ exports.register = async (req, res, next) => {
             }
         }
 
-        if (username) {
-            const existingUser = await User.findOne({ username });
+        if (usernameVal) {
+            const existingUser = await User.findOne({ username: usernameVal });
             if (existingUser) {
                 return res.status(400).json({
                     success: false,
@@ -110,18 +114,20 @@ exports.register = async (req, res, next) => {
             }
         }
 
-        // Crear usuario
-        const user = await User.create({
+        // Crear usuario (solo campos válidos)
+        const userData = {
             nombre,
             apellido,
-            email: email || undefined,
-            username: username || undefined,
             password,
             role: role || 'recepcion',
-            telefono,
-            especialidad,
-            licenciaMedica
-        });
+            telefono: telefono || undefined,
+            especialidad: especialidad || undefined,
+            licenciaMedica: licenciaMedica || undefined
+        };
+        if (emailVal) userData.email = emailVal;
+        if (usernameVal) userData.username = usernameVal;
+
+        const user = await User.create(userData);
 
         // Generar token
         const token = user.generateToken();
