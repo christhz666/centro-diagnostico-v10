@@ -97,6 +97,13 @@ const AdminUsuarios = () => {
     e.preventDefault();
     try {
       const userData = { ...formData };
+      // No enviar email/username vacíos o "null" para evitar errores de índice único
+      if (!userData.email || userData.email === 'null' || String(userData.email).trim() === '') {
+        delete userData.email;
+      }
+      if (!userData.username || userData.username === 'null' || String(userData.username).trim() === '') {
+        delete userData.username;
+      }
       if (editando) {
         if (!userData.password) delete userData.password;
         if (!userData.sucursal) userData.sucursal = null;

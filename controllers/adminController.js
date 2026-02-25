@@ -74,12 +74,17 @@ exports.createUsuario = async (req, res, next) => {
         }
         delete req.body.rol;
 
-        // Evitar que Mongoose registre strings vacíos en índices Unique Sparse
-        if (!req.body.email || req.body.email.trim() === '') {
-            req.body.email = undefined;
+        // Evitar que Mongoose registre strings vacíos o "null" en índices Unique Sparse
+        if (req.body.email === undefined || req.body.email === null || req.body.email === 'null' ||
+            (typeof req.body.email === 'string' && req.body.email.trim() === '')) {
+            delete req.body.email;
         }
-        if (!req.body.username || req.body.username.trim() === '') {
-            req.body.username = undefined;
+        if (req.body.username === undefined || req.body.username === null || req.body.username === 'null' ||
+            (typeof req.body.username === 'string' && req.body.username.trim() === '')) {
+            delete req.body.username;
+        }
+        if (req.body.sucursal === '' || req.body.sucursal === 'null') {
+            req.body.sucursal = null;
         }
 
         const usuario = await User.create(req.body);
@@ -113,12 +118,21 @@ exports.updateUsuario = async (req, res, next) => {
         }
         delete req.body.rol;
 
-        // Evitar que Mongoose registre strings vacíos en índices Unique Sparse
-        if (req.body.email !== undefined && req.body.email.trim() === '') {
-            req.body.email = undefined;
+        // Evitar que Mongoose registre strings vacíos o "null" en índices Unique Sparse
+        if (req.body.email === undefined || req.body.email === null || req.body.email === 'null' ||
+            (typeof req.body.email === 'string' && req.body.email.trim() === '')) {
+            delete req.body.email;
+        } else {
+            req.body.email = req.body.email.trim();
         }
-        if (req.body.username !== undefined && req.body.username.trim() === '') {
-            req.body.username = undefined;
+        if (req.body.username === undefined || req.body.username === null || req.body.username === 'null' ||
+            (typeof req.body.username === 'string' && req.body.username.trim() === '')) {
+            delete req.body.username;
+        } else if (typeof req.body.username === 'string') {
+            req.body.username = req.body.username.trim();
+        }
+        if (req.body.sucursal === '' || req.body.sucursal === 'null') {
+            req.body.sucursal = null;
         }
 
         const usuario = await User.findByIdAndUpdate(
