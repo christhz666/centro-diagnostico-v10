@@ -11,7 +11,10 @@ exports.getPacientes = async (req, res, next) => {
 
         // Filtros
         let filter = { activo: true };
-        if (req.sucursalId) filter.sucursal = req.sucursalId;
+        // Si es médico, permitir ver pacientes de todas las sucursales en su Portal
+        if (req.sucursalId && req.user && req.user.role !== 'medico' && req.user.role !== 'admin' && req.user.role !== 'super-admin') {
+            filter.sucursal = req.sucursalId;
+        }
 
         // Búsqueda por texto
         if (req.query.search) {
@@ -85,7 +88,9 @@ exports.getPaciente = async (req, res, next) => {
 exports.getPacienteByCedula = async (req, res, next) => {
     try {
         const filter = { cedula: req.params.cedula };
-        if (req.sucursalId) filter.sucursal = req.sucursalId;
+        if (req.sucursalId && req.user && req.user.role !== 'medico' && req.user.role !== 'admin' && req.user.role !== 'super-admin') {
+            filter.sucursal = req.sucursalId;
+        }
         const paciente = await Paciente.findOne(filter);
 
         if (!paciente) {
