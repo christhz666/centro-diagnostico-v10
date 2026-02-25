@@ -11,7 +11,12 @@ exports.requireSucursal = (req, res, next) => {
         sucursalId = req.headers['x-sucursal-id'];
     }
 
+    // 3. Exonerar a Administradores y Médicos de requerir Sucursal estricta
     if (!sucursalId) {
+        if (req.user && (req.user.role === 'admin' || req.user.role === 'super-admin' || req.user.role === 'medico')) {
+            return next();
+        }
+
         return res.status(400).json({
             success: false,
             message: 'No tienes una sucursal física asignada en tu perfil de usuario. Contacta al administrador.'

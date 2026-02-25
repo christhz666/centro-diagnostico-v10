@@ -22,7 +22,8 @@ exports.getTurnoActivo = async (req, res, next) => {
     try {
         const sucursalId = req.headers['x-sucursal-id'] || req.user.sucursal;
         if (!sucursalId) {
-            return res.status(400).json({ success: false, error: 'Sucursal no definida en el contexto del usuario' });
+            // Administradores y Médicos globales no tienen turno de caja por defecto
+            return res.status(200).json({ success: true, data: null });
         }
 
         const turno = await TurnoCaja.findOne({
